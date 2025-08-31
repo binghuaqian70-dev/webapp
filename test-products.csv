@@ -1,0 +1,4 @@
+name,company_name,price,stock,description,category,sku
+测试商品1,测试公司A,99.99,100,这是一个测试商品,电子产品,TEST-001
+测试商品2,测试公司B,199.99,50,这是另一个测试商品,家居用品,TEST-002
+测试商品3,测试公司C,299.99,25,第三个测试商品,服装,TEST-003
