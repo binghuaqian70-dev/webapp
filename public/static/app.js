@@ -51,9 +51,13 @@ function showPage(page) {
         link.classList.remove('active');
     });
     
-    event?.target.classList.add('active');
-    currentPage = page;
+    // 找到当前点击的链接并激活
+    const targetLink = document.querySelector(`a[onclick="showPage('${page}')"]`);
+    if (targetLink) {
+        targetLink.classList.add('active');
+    }
     
+    currentPage = page;
     const content = document.getElementById('page-content');
     
     switch (page) {
@@ -283,7 +287,7 @@ async function loadProducts(page = 1) {
             ...currentFilters
         });
         
-        const response = await axios.get(\`/api/products?\${params}\`);
+        const response = await axios.get(`/api/products?${params}`);
         const data = response.data;
         
         products = data.data;
@@ -328,40 +332,40 @@ function renderProductTable(products) {
                     </tr>
                 </thead>
                 <tbody>
-                    \${products.map(product => \`
+                    ${products.map(product => `
                         <tr class="table-row">
                             <td class="table-cell">
                                 <div>
-                                    <div class="font-medium text-gray-900">\${product.name}</div>
-                                    \${product.description ? \`<div class="text-sm text-gray-500">\${product.description}</div>\` : ''}
+                                    <div class="font-medium text-gray-900">${product.name}</div>
+                                    ${product.description ? `<div class="text-sm text-gray-500">${product.description}</div>` : ''}
                                 </div>
                             </td>
-                            <td class="table-cell">\${product.company_name}</td>
-                            <td class="table-cell">¥\${parseFloat(product.price).toFixed(2)}</td>
+                            <td class="table-cell">${product.company_name}</td>
+                            <td class="table-cell">¥${parseFloat(product.price).toFixed(2)}</td>
                             <td class="table-cell">
-                                <span class="\${product.stock > 10 ? 'text-green-600' : product.stock > 0 ? 'text-yellow-600' : 'text-red-600'}">
-                                    \${product.stock}
+                                <span class="${product.stock > 10 ? 'text-green-600' : product.stock > 0 ? 'text-yellow-600' : 'text-red-600'}">
+                                    ${product.stock}
                                 </span>
                             </td>
-                            <td class="table-cell">\${product.category || '-'}</td>
-                            <td class="table-cell">\${product.sku || '-'}</td>
+                            <td class="table-cell">${product.category || '-'}</td>
+                            <td class="table-cell">${product.sku || '-'}</td>
                             <td class="table-cell">
-                                <span class="status-badge \${product.status === 'active' ? 'status-active' : 'status-inactive'}">
-                                    \${product.status === 'active' ? '正常' : '停用'}
+                                <span class="status-badge ${product.status === 'active' ? 'status-active' : 'status-inactive'}">
+                                    ${product.status === 'active' ? '正常' : '停用'}
                                 </span>
                             </td>
                             <td class="table-cell">
                                 <div class="flex space-x-2">
-                                    <button onclick="editProduct(\${product.id})" class="btn-success">
+                                    <button onclick="editProduct(${product.id})" class="btn-success">
                                         <i class="fas fa-edit"></i>
                                     </button>
-                                    <button onclick="deleteProduct(\${product.id})" class="btn-danger">
+                                    <button onclick="deleteProduct(${product.id})" class="btn-danger">
                                         <i class="fas fa-trash"></i>
                                     </button>
                                 </div>
                             </td>
                         </tr>
-                    \`).join('')}
+                    `).join('')}
                 </tbody>
             </table>
         </div>
@@ -381,49 +385,49 @@ function renderPagination(pagination) {
     let paginationHTML = '';
     
     // 上一页
-    paginationHTML += \`
-        <button onclick="loadProducts(\${page - 1})" 
+    paginationHTML += `
+        <button onclick="loadProducts(${page - 1})" 
                 class="pagination-button" 
-                \${page <= 1 ? 'disabled' : ''}>
+                ${page <= 1 ? 'disabled' : ''}>
             <i class="fas fa-chevron-left"></i>
         </button>
-    \`;
+    `;
     
     // 页码
     const startPage = Math.max(1, page - 2);
     const endPage = Math.min(totalPages, page + 2);
     
     if (startPage > 1) {
-        paginationHTML += \`
+        paginationHTML += `
             <button onclick="loadProducts(1)" class="pagination-button">1</button>
-            \${startPage > 2 ? '<span class="px-2">...</span>' : ''}
-        \`;
+            ${startPage > 2 ? '<span class="px-2">...</span>' : ''}
+        `;
     }
     
     for (let i = startPage; i <= endPage; i++) {
-        paginationHTML += \`
-            <button onclick="loadProducts(\${i})" 
-                    class="pagination-button \${i === page ? 'active' : ''}">
-                \${i}
+        paginationHTML += `
+            <button onclick="loadProducts(${i})" 
+                    class="pagination-button ${i === page ? 'active' : ''}">
+                ${i}
             </button>
-        \`;
+        `;
     }
     
     if (endPage < totalPages) {
-        paginationHTML += \`
-            \${endPage < totalPages - 1 ? '<span class="px-2">...</span>' : ''}
-            <button onclick="loadProducts(\${totalPages})" class="pagination-button">\${totalPages}</button>
-        \`;
+        paginationHTML += `
+            ${endPage < totalPages - 1 ? '<span class="px-2">...</span>' : ''}
+            <button onclick="loadProducts(${totalPages})" class="pagination-button">${totalPages}</button>
+        `;
     }
     
     // 下一页
-    paginationHTML += \`
-        <button onclick="loadProducts(\${page + 1})" 
+    paginationHTML += `
+        <button onclick="loadProducts(${page + 1})" 
                 class="pagination-button" 
-                \${page >= totalPages ? 'disabled' : ''}>
+                ${page >= totalPages ? 'disabled' : ''}>
             <i class="fas fa-chevron-right"></i>
         </button>
-    \`;
+    `;
     
     container.innerHTML = paginationHTML;
 }
@@ -468,10 +472,10 @@ function showAddProduct(editId = null) {
     const title = isEdit ? '编辑商品' : '添加商品';
     
     const content = document.getElementById('page-content');
-    content.innerHTML = \`
+    content.innerHTML = `
         <div class="max-w-2xl mx-auto">
             <div class="mb-6">
-                <h2 class="text-3xl font-bold text-gray-800">\${title}</h2>
+                <h2 class="text-3xl font-bold text-gray-800">${title}</h2>
             </div>
             
             <div class="bg-white rounded-lg shadow-md p-6">
@@ -518,13 +522,13 @@ function showAddProduct(editId = null) {
                             取消
                         </button>
                         <button type="submit" class="btn-primary">
-                            <i class="fas fa-save mr-2"></i>\${isEdit ? '更新' : '保存'}
+                            <i class="fas fa-save mr-2"></i>${isEdit ? '更新' : '保存'}
                         </button>
                     </div>
                 </form>
             </div>
         </div>
-    \`;
+    `;
     
     // 如果是编辑模式，加载商品数据
     if (isEdit) {
@@ -541,7 +545,7 @@ function showAddProduct(editId = null) {
 // 加载待编辑的商品数据
 async function loadProductForEdit(id) {
     try {
-        const response = await axios.get(\`/api/products/\${id}\`);
+        const response = await axios.get(`/api/products/${id}`);
         const product = response.data.data;
         
         document.getElementById('productName').value = product.name;
@@ -575,13 +579,13 @@ async function saveProduct(editId = null) {
         
         let response;
         if (editId) {
-            response = await axios.put(\`/api/products/\${editId}\`, formData);
+            response = await axios.put(`/api/products/${editId}`, formData);
         } else {
             response = await axios.post('/api/products', formData);
         }
         
         if (response.data.success) {
-            showMessage(\`商品\${editId ? '更新' : '添加'}成功\`);
+            showMessage(`商品${editId ? '更新' : '添加'}成功`);
             showProducts();
         } else {
             showMessage(response.data.error || '操作失败', 'error');
@@ -609,7 +613,7 @@ async function deleteProduct(id) {
     try {
         showLoading();
         
-        const response = await axios.delete(\`/api/products/\${id}\`);
+        const response = await axios.delete(`/api/products/${id}`);
         
         if (response.data.success) {
             showMessage('商品删除成功');
@@ -629,7 +633,7 @@ async function deleteProduct(id) {
 // 批量导入页面
 function showImport() {
     const content = document.getElementById('page-content');
-    content.innerHTML = \`
+    content.innerHTML = `
         <div class="max-w-4xl mx-auto">
             <div class="mb-6">
                 <h2 class="text-3xl font-bold text-gray-800">批量导入商品</h2>
@@ -708,7 +712,7 @@ function showImport() {
                 </div>
             </div>
         </div>
-    \`;
+    `;
     
     setupFileUpload();
 }
@@ -767,7 +771,7 @@ function handleFile(file) {
     
     // 显示文件信息
     document.getElementById('fileName').textContent = file.name;
-    document.getElementById('fileSize').textContent = \`\${(file.size / 1024).toFixed(2)} KB\`;
+    document.getElementById('fileSize').textContent = `${(file.size / 1024).toFixed(2)} KB`;
     document.getElementById('fileInfo').classList.remove('hidden');
     
     // 读取并预览文件
@@ -780,7 +784,7 @@ function handleFile(file) {
 
 // 解析CSV内容
 function parseCSVContent(csvContent) {
-    const lines = csvContent.trim().split('\\n');
+    const lines = csvContent.trim().split('\n');
     
     if (lines.length < 2) {
         showMessage('CSV文件至少需要包含表头和一行数据', 'error');
@@ -795,7 +799,7 @@ function parseCSVContent(csvContent) {
     const missingFields = requiredFields.filter(field => !headers.includes(field));
     
     if (missingFields.length > 0) {
-        showMessage(\`缺少必要字段: \${missingFields.join(', ')}\`, 'error');
+        showMessage(`缺少必要字段: ${missingFields.join(', ')}`, 'error');
         return;
     }
     
@@ -830,29 +834,29 @@ function parseCSVContent(csvContent) {
 function showPreview(headers, products, totalCount) {
     const previewTable = document.getElementById('previewTable');
     
-    previewTable.innerHTML = \`
+    previewTable.innerHTML = `
         <table class="w-full text-sm">
             <thead>
                 <tr class="bg-gray-50">
-                    \${headers.map(header => \`<th class="px-4 py-2 text-left font-medium text-gray-700">\${header}</th>\`).join('')}
+                    ${headers.map(header => `<th class="px-4 py-2 text-left font-medium text-gray-700">${header}</th>`).join('')}
                 </tr>
             </thead>
             <tbody>
-                \${products.map(product => \`
+                ${products.map(product => `
                     <tr class="border-t border-gray-200">
-                        \${headers.map(header => \`<td class="px-4 py-2 text-gray-900">\${product[header] || '-'}</td>\`).join('')}
+                        ${headers.map(header => `<td class="px-4 py-2 text-gray-900">${product[header] || '-'}</td>`).join('')}
                     </tr>
-                \`).join('')}
+                `).join('')}
             </tbody>
         </table>
-    \`;
+    `;
     
     document.getElementById('previewSection').classList.remove('hidden');
     
     if (totalCount > 5) {
         const notice = document.createElement('p');
         notice.className = 'text-sm text-gray-600 mt-2';
-        notice.textContent = \`共 \${totalCount} 条数据，以上仅显示前 5 条预览\`;
+        notice.textContent = `共 ${totalCount} 条数据，以上仅显示前 5 条预览`;
         previewTable.appendChild(notice);
     }
 }
@@ -883,31 +887,31 @@ async function importProducts() {
         const result = response.data.data;
         
         // 显示导入结果
-        document.getElementById('resultContent').innerHTML = \`
+        document.getElementById('resultContent').innerHTML = `
             <div class="space-y-4">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div class="text-center p-4 bg-blue-50 rounded-lg">
-                        <div class="text-2xl font-bold text-blue-600">\${result.total}</div>
+                        <div class="text-2xl font-bold text-blue-600">${result.total}</div>
                         <div class="text-sm text-blue-600">总数据数</div>
                     </div>
                     <div class="text-center p-4 bg-green-50 rounded-lg">
-                        <div class="text-2xl font-bold text-green-600">\${result.successCount}</div>
+                        <div class="text-2xl font-bold text-green-600">${result.successCount}</div>
                         <div class="text-sm text-green-600">成功导入</div>
                     </div>
                     <div class="text-center p-4 bg-red-50 rounded-lg">
-                        <div class="text-2xl font-bold text-red-600">\${result.errorCount}</div>
+                        <div class="text-2xl font-bold text-red-600">${result.errorCount}</div>
                         <div class="text-sm text-red-600">导入失败</div>
                     </div>
                 </div>
                 
-                \${result.errors.length > 0 ? \`
+                ${result.errors.length > 0 ? `
                     <div class="mt-4">
                         <h5 class="font-medium text-red-800 mb-2">错误详情:</h5>
                         <div class="bg-red-50 border border-red-200 rounded-lg p-3 max-h-40 overflow-y-auto">
-                            \${result.errors.map(error => \`<div class="text-sm text-red-700">\${error}</div>\`).join('')}
+                            ${result.errors.map(error => `<div class="text-sm text-red-700">${error}</div>`).join('')}
                         </div>
                     </div>
-                \` : ''}
+                ` : ''}
                 
                 <div class="flex justify-end space-x-4 mt-6">
                     <button onclick="clearFile()" class="btn-secondary">
@@ -918,12 +922,12 @@ async function importProducts() {
                     </button>
                 </div>
             </div>
-        \`;
+        `;
         
         document.getElementById('importResult').classList.remove('hidden');
         
         if (result.successCount > 0) {
-            showMessage(\`成功导入 \${result.successCount} 个商品\`);
+            showMessage(`成功导入 ${result.successCount} 个商品`);
         }
         
     } catch (error) {
