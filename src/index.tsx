@@ -24,14 +24,62 @@ type Product = {
   updated_at?: string;
 }
 
+// 用户数据类型
+type User = {
+  id?: number;
+  username: string;
+  email: string;
+  password_hash?: string;
+  role: 'admin' | 'user' | 'manager';
+  status: 'active' | 'inactive' | 'suspended';
+  created_at?: string;
+  updated_at?: string;
+  last_login?: string;
+  failed_login_attempts?: number;
+  account_locked_until?: string;
+}
+
+// 简单密码哈希函数 (生产环境应使用更强的加密)
+async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password + 'salt-2025');
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return hashHex;
+}
+
+// 验证密码
+async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  const passwordHash = await hashPassword(password);
+  return passwordHash === hash;
+}
+
+// 验证邮箱格式
+function validateEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
+
+// 验证密码强度
+function validatePassword(password: string): { valid: boolean; message?: string } {
+  if (password.length < 6) {
+    return { valid: false, message: '密码长度至少6位' };
+  }
+  if (!/(?=.*[a-zA-Z])(?=.*[0-9])/.test(password)) {
+    return { valid: false, message: '密码必须包含字母和数字' };
+  }
+  return { valid: true };
+}
+
 const app = new Hono<{ Bindings: Bindings }>()
 
 // 认证配置
 const AUTH_CONFIG = {
-  username: 'admin',
-  password: 'admin',
   jwtSecret: 'your-jwt-secret-key-2025', // 在生产环境中应使用环境变量
-  tokenExpiry: '24h'
+  tokenExpiry: 24 * 60 * 60, // 24小时（秒）
+  maxFailedAttempts: 5, // 最大失败登录次数
+  lockoutDuration: 30 * 60 // 锁定时长30分钟（秒）
 }
 
 // 启用CORS
@@ -39,9 +87,17 @@ app.use('/api/*', cors())
 
 // JWT认证中间件
 const authMiddleware = async (c: any, next: any) => {
-  // 跳过登录和公共API
+  // 跳过登录、注册和公共API
   const path = c.req.path
-  if (path === '/api/auth/login' || path === '/api/search-fields' || path === '/' || path.startsWith('/static/')) {
+  const publicPaths = [
+    '/api/auth/login', 
+    '/api/auth/register', 
+    '/api/search-fields', 
+    '/',
+    '/register.html'
+  ];
+  
+  if (publicPaths.includes(path) || path.startsWith('/static/')) {
     return next()
   }
   
@@ -60,55 +116,469 @@ const authMiddleware = async (c: any, next: any) => {
   }
 }
 
+// 管理员权限中间件
+const adminMiddleware = async (c: any, next: any) => {
+  const user = c.get('user');
+  if (!user || user.role !== 'admin') {
+    return c.json({ success: false, error: '需要管理员权限' }, 403);
+  }
+  return next();
+}
+
 // 应用认证中间件到受保护的API路由
 app.use('/api/products*', authMiddleware)
 app.use('/api/stats', authMiddleware)
 app.use('/api/search', authMiddleware)
+app.use('/api/users*', authMiddleware, adminMiddleware) // 用户管理需要管理员权限
 
 // 静态文件服务
 app.use('/static/*', serveStatic({ root: './public' }))
+app.get('/register.html', serveStatic({ path: './public/register.html' }))
 
 // 认证相关API
 app.post('/api/auth/login', async (c) => {
   try {
+    const { env } = c;
     const { username, password } = await c.req.json()
     
-    // 验证用户名和密码
-    if (username === AUTH_CONFIG.username && password === AUTH_CONFIG.password) {
-      // 生成JWT令牌
-      const payload = {
-        username: username,
-        role: 'admin',
-        iat: Math.floor(Date.now() / 1000),
-        exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) // 24小时过期
-      }
-      
-      const token = await sign(payload, AUTH_CONFIG.jwtSecret)
-      
-      return c.json({
-        success: true,
-        data: {
-          token,
-          user: {
-            username: username,
-            role: 'admin'
-          }
-        }
-      })
-    } else {
+    if (!username || !password) {
+      return c.json({ 
+        success: false, 
+        error: '用户名和密码不能为空' 
+      }, 400)
+    }
+    
+    // 从数据库查询用户
+    const user = await env.DB.prepare(
+      'SELECT * FROM users WHERE username = ? AND status = "active"'
+    ).bind(username).first<User>();
+    
+    if (!user) {
       return c.json({ 
         success: false, 
         error: '用户名或密码错误' 
       }, 401)
     }
+    
+    // 检查账户是否被锁定
+    if (user.account_locked_until) {
+      const lockUntil = new Date(user.account_locked_until);
+      if (lockUntil > new Date()) {
+        const remainingMinutes = Math.ceil((lockUntil.getTime() - Date.now()) / (1000 * 60));
+        return c.json({
+          success: false,
+          error: `账户已被锁定，请在 ${remainingMinutes} 分钟后重试`
+        }, 401);
+      }
+    }
+    
+    // 验证密码
+    const isPasswordValid = await verifyPassword(password, user.password_hash!);
+    
+    if (!isPasswordValid) {
+      // 增加失败登录次数
+      const failedAttempts = (user.failed_login_attempts || 0) + 1;
+      let lockUntil = null;
+      
+      if (failedAttempts >= AUTH_CONFIG.maxFailedAttempts) {
+        lockUntil = new Date(Date.now() + AUTH_CONFIG.lockoutDuration * 1000).toISOString();
+      }
+      
+      await env.DB.prepare(
+        'UPDATE users SET failed_login_attempts = ?, account_locked_until = ? WHERE id = ?'
+      ).bind(failedAttempts, lockUntil, user.id).run();
+      
+      return c.json({ 
+        success: false, 
+        error: failedAttempts >= AUTH_CONFIG.maxFailedAttempts 
+          ? '登录失败次数过多，账户已被锁定' 
+          : '用户名或密码错误'
+      }, 401)
+    }
+    
+    // 登录成功，重置失败次数并更新最后登录时间
+    await env.DB.prepare(
+      'UPDATE users SET failed_login_attempts = 0, account_locked_until = NULL, last_login = CURRENT_TIMESTAMP WHERE id = ?'
+    ).bind(user.id).run();
+    
+    // 生成JWT令牌
+    const payload = {
+      userId: user.id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + AUTH_CONFIG.tokenExpiry
+    }
+    
+    const token = await sign(payload, AUTH_CONFIG.jwtSecret)
+    
+    return c.json({
+      success: true,
+      data: {
+        token,
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          role: user.role,
+          last_login: user.last_login
+        }
+      }
+    })
   } catch (error) {
     console.error('Login error:', error)
     return c.json({ 
       success: false, 
-      error: '登录失败，请检查输入格式' 
-    }, 400)
+      error: '登录失败，请稍后重试' 
+    }, 500)
   }
 })
+
+// 用户注册API
+app.post('/api/auth/register', async (c) => {
+  try {
+    const { env } = c;
+    const { username, email, password, role = 'user' } = await c.req.json();
+    
+    // 验证输入数据
+    if (!username || !email || !password) {
+      return c.json({
+        success: false,
+        error: '用户名、邮箱和密码不能为空'
+      }, 400);
+    }
+    
+    // 验证用户名格式
+    if (username.length < 3 || username.length > 20) {
+      return c.json({
+        success: false,
+        error: '用户名长度必须在3-20个字符之间'
+      }, 400);
+    }
+    
+    // 验证邮箱格式
+    if (!validateEmail(email)) {
+      return c.json({
+        success: false,
+        error: '邮箱格式不正确'
+      }, 400);
+    }
+    
+    // 验证密码强度
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.valid) {
+      return c.json({
+        success: false,
+        error: passwordValidation.message
+      }, 400);
+    }
+    
+    // 验证角色
+    const validRoles = ['user', 'manager', 'admin'];
+    if (!validRoles.includes(role)) {
+      return c.json({
+        success: false,
+        error: '无效的用户角色'
+      }, 400);
+    }
+    
+    // 检查用户名是否已存在
+    const existingUser = await env.DB.prepare(
+      'SELECT id FROM users WHERE username = ? OR email = ?'
+    ).bind(username, email).first();
+    
+    if (existingUser) {
+      return c.json({
+        success: false,
+        error: '用户名或邮箱已存在'
+      }, 409);
+    }
+    
+    // 加密密码
+    const passwordHash = await hashPassword(password);
+    
+    // 创建用户
+    const result = await env.DB.prepare(
+      'INSERT INTO users (username, email, password_hash, role, status) VALUES (?, ?, ?, ?, "active")'
+    ).bind(username, email, passwordHash, role).run();
+    
+    return c.json({
+      success: true,
+      message: '用户注册成功',
+      data: {
+        userId: result.meta.last_row_id,
+        username,
+        email,
+        role
+      }
+    });
+  } catch (error) {
+    console.error('Register error:', error);
+    return c.json({
+      success: false,
+      error: '注册失败，请稍后重试'
+    }, 500);
+  }
+});
+
+// 获取用户列表API（仅管理员）
+app.get('/api/users', async (c) => {
+  try {
+    const { env } = c;
+    const page = parseInt(c.req.query('page') || '1');
+    const limit = parseInt(c.req.query('limit') || '20');
+    const search = c.req.query('search') || '';
+    const role = c.req.query('role') || '';
+    const status = c.req.query('status') || '';
+    
+    const offset = (page - 1) * limit;
+    
+    let whereClause = 'WHERE 1=1';
+    let params: any[] = [];
+    
+    if (search) {
+      whereClause += ' AND (username LIKE ? OR email LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`);
+    }
+    
+    if (role) {
+      whereClause += ' AND role = ?';
+      params.push(role);
+    }
+    
+    if (status) {
+      whereClause += ' AND status = ?';
+      params.push(status);
+    }
+    
+    // 获取用户列表
+    const users = await env.DB.prepare(
+      `SELECT id, username, email, role, status, created_at, last_login, failed_login_attempts 
+       FROM users ${whereClause} 
+       ORDER BY created_at DESC 
+       LIMIT ? OFFSET ?`
+    ).bind(...params, limit, offset).all<User>();
+    
+    // 获取总数
+    const totalResult = await env.DB.prepare(
+      `SELECT COUNT(*) as count FROM users ${whereClause}`
+    ).bind(...params).first<{ count: number }>();
+    
+    const total = totalResult?.count || 0;
+    const totalPages = Math.ceil(total / limit);
+    
+    return c.json({
+      success: true,
+      data: {
+        users: users.results,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasNext: page < totalPages,
+          hasPrev: page > 1
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get users error:', error);
+    return c.json({
+      success: false,
+      error: '获取用户列表失败'
+    }, 500);
+  }
+});
+
+// 更新用户信息API（仅管理员）
+app.put('/api/users/:id', async (c) => {
+  try {
+    const { env } = c;
+    const userId = c.req.param('id');
+    const { email, role, status } = await c.req.json();
+    
+    // 验证输入
+    if (email && !validateEmail(email)) {
+      return c.json({
+        success: false,
+        error: '邮箱格式不正确'
+      }, 400);
+    }
+    
+    const validRoles = ['user', 'manager', 'admin'];
+    if (role && !validRoles.includes(role)) {
+      return c.json({
+        success: false,
+        error: '无效的用户角色'
+      }, 400);
+    }
+    
+    const validStatuses = ['active', 'inactive', 'suspended'];
+    if (status && !validStatuses.includes(status)) {
+      return c.json({
+        success: false,
+        error: '无效的用户状态'
+      }, 400);
+    }
+    
+    // 检查用户是否存在
+    const existingUser = await env.DB.prepare(
+      'SELECT id FROM users WHERE id = ?'
+    ).bind(userId).first();
+    
+    if (!existingUser) {
+      return c.json({
+        success: false,
+        error: '用户不存在'
+      }, 404);
+    }
+    
+    // 构建更新SQL
+    const updates: string[] = [];
+    const params: any[] = [];
+    
+    if (email) {
+      updates.push('email = ?');
+      params.push(email);
+    }
+    
+    if (role) {
+      updates.push('role = ?');
+      params.push(role);
+    }
+    
+    if (status) {
+      updates.push('status = ?');
+      params.push(status);
+    }
+    
+    if (updates.length === 0) {
+      return c.json({
+        success: false,
+        error: '没有提供要更新的字段'
+      }, 400);
+    }
+    
+    params.push(userId);
+    
+    await env.DB.prepare(
+      `UPDATE users SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+    ).bind(...params).run();
+    
+    return c.json({
+      success: true,
+      message: '用户信息更新成功'
+    });
+  } catch (error) {
+    console.error('Update user error:', error);
+    return c.json({
+      success: false,
+      error: '更新用户信息失败'
+    }, 500);
+  }
+});
+
+// 删除用户API（仅管理员）
+app.delete('/api/users/:id', async (c) => {
+  try {
+    const { env } = c;
+    const userId = c.req.param('id');
+    const currentUser = c.get('user');
+    
+    // 防止删除自己
+    if (currentUser.userId == userId) {
+      return c.json({
+        success: false,
+        error: '不能删除自己的账户'
+      }, 400);
+    }
+    
+    // 检查用户是否存在
+    const existingUser = await env.DB.prepare(
+      'SELECT id FROM users WHERE id = ?'
+    ).bind(userId).first();
+    
+    if (!existingUser) {
+      return c.json({
+        success: false,
+        error: '用户不存在'
+      }, 404);
+    }
+    
+    // 软删除：将状态设置为inactive
+    await env.DB.prepare(
+      'UPDATE users SET status = "inactive", updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+    ).bind(userId).run();
+    
+    return c.json({
+      success: true,
+      message: '用户删除成功'
+    });
+  } catch (error) {
+    console.error('Delete user error:', error);
+    return c.json({
+      success: false,
+      error: '删除用户失败'
+    }, 500);
+  }
+});
+
+// 重置用户密码API（仅管理员）
+app.post('/api/users/:id/reset-password', async (c) => {
+  try {
+    const { env } = c;
+    const userId = c.req.param('id');
+    const { newPassword } = await c.req.json();
+    
+    if (!newPassword) {
+      return c.json({
+        success: false,
+        error: '新密码不能为空'
+      }, 400);
+    }
+    
+    // 验证密码强度
+    const passwordValidation = validatePassword(newPassword);
+    if (!passwordValidation.valid) {
+      return c.json({
+        success: false,
+        error: passwordValidation.message
+      }, 400);
+    }
+    
+    // 检查用户是否存在
+    const existingUser = await env.DB.prepare(
+      'SELECT id FROM users WHERE id = ?'
+    ).bind(userId).first();
+    
+    if (!existingUser) {
+      return c.json({
+        success: false,
+        error: '用户不存在'
+      }, 404);
+    }
+    
+    // 加密新密码
+    const passwordHash = await hashPassword(newPassword);
+    
+    // 更新密码并重置失败登录记录
+    await env.DB.prepare(
+      'UPDATE users SET password_hash = ?, failed_login_attempts = 0, account_locked_until = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+    ).bind(passwordHash, userId).run();
+    
+    return c.json({
+      success: true,
+      message: '密码重置成功'
+    });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    return c.json({
+      success: false,
+      error: '重置密码失败'
+    }, 500);
+  }
+});
 
 // 验证令牌API
 app.get('/api/auth/verify', async (c) => {
@@ -124,7 +594,9 @@ app.get('/api/auth/verify', async (c) => {
       success: true,
       data: {
         user: {
+          userId: payload.userId,
           username: payload.username,
+          email: payload.email,
           role: payload.role
         }
       }
@@ -726,7 +1198,12 @@ app.get('/', (c) => {
                     <div id="loginError" class="hidden text-red-600 text-sm text-center"></div>
                 </form>
                 
-
+                <div class="mt-6 text-center">
+                    <p class="text-sm text-gray-600">
+                        没有账户？
+                        <a href="/register.html" class="text-blue-600 hover:text-blue-700 font-medium">立即注册</a>
+                    </p>
+                </div>
             </div>
         </div>
         
@@ -753,6 +1230,9 @@ app.get('/', (c) => {
                         </a>
                         <a href="#" onclick="showPage('import')" class="nav-link">
                             <i class="fas fa-upload mr-3"></i>批量导入
+                        </a>
+                        <a href="#" onclick="showPage('users')" class="nav-link" id="user-management-link" style="display: none;">
+                            <i class="fas fa-users mr-3"></i>用户管理
                         </a>
                     </nav>
                     
