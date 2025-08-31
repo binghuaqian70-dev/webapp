@@ -1,0 +1,21 @@
+name,company_name,price,stock,description,category,sku
+iPhone 16 Pro Max,苹果公司,12999.00,25,全新iPhone 16 Pro Max 钛金属设计,数码电子,APPLE-IP16PM-001
+Samsung Galaxy S25 Ultra,三星电子,11999.00,30,三星旗舰机型 S Pen支持,数码电子,SAMSUNG-S25U-001
+华为Mate70 Pro,华为技术,9999.00,40,最新麒麟芯片 卫星通信,数码电子,HW-M70P-001
+小米15 Pro,小米科技,5999.00,60,骁龙8 Gen4处理器,数码电子,MI-15P-001
+OPPO Find X8 Pro,OPPO,6999.00,35,哈苏影像系统,数码电子,OPPO-FX8P-001
+vivo X100 Ultra,vivo,7999.00,45,蔡司T*镜头认证,数码电子,VIVO-X100U-001
+MacBook Pro 16寸 M4,苹果公司,22999.00,15,M4 Max芯片 专业级性能,数码电子,APPLE-MBP16M4-001
+Surface Laptop 6,微软公司,13999.00,20,Windows 11 专业版,数码电子,MS-SL6-001
+ThinkPad X1 Carbon Gen 12,联想集团,16999.00,18,商务轻薄本 碳纤维机身,数码电子,LENOVO-X1C12-001
+戴尔XPS 15 Plus,戴尔公司,18999.00,12,4K OLED屏幕 创作者笔记本,数码电子,DELL-XPS15P-001
+美的变频空调 3匹,美的集团,4999.00,80,一级能效 智能控制,家用电器,MIDEA-AC3P-002
+格力空调 2匹 云锦II,格力电器,3999.00,90,自清洁 WiFi控制,家用电器,GREE-YJ2II-001
+海尔洗衣机 12KG 直驱,海尔集团,4599.00,55,直驱变频 智能投放,家用电器,HAIER-WM12DD-001
+西门子冰箱 500L 风冷,西门子,7999.00,25,风冷无霜 变频压缩机,家用电器,SIEMENS-RF500-001
+TCL电视 85寸 C11G,TCL集团,12999.00,20,Mini LED背光 量子点,家用电器,TCL-TV85C11G-001
+Sony A95L OLED 65寸,索尼公司,19999.00,8,OLED面板 XR认知芯片,家用电器,SONY-A95L65-001
+Nike Air Jordan 4 Retro,耐克公司,1699.00,150,经典复刻篮球鞋,服装鞋帽,NIKE-AJ4R-001
+Adidas Yeezy Boost 350 V2,阿迪达斯,2299.00,100,椰子鞋 Primeknit鞋面,服装鞋帽,ADIDAS-YB350V2-001
+Supreme Box Logo Hoodie,Supreme,3999.00,25,限量版帽衫 街头潮流,服装鞋帽,SUPREME-BLH-001
+Uniqlo Heattech保暖内衣,优衣库,199.00,500,发热纤维 保暖内衣,服装鞋帽,UNIQLO-HT-001
