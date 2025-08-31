@@ -52,11 +52,33 @@ app.get('/api/products', async (c) => {
     let whereClause = "WHERE status = 'active'";
     let params: any[] = [];
     
-    // 构建动态WHERE条件
+    // 构建动态WHERE条件 - 支持多字段搜索
     if (search) {
-      whereClause += " AND (name LIKE ? OR company_name LIKE ? OR description LIKE ?)";
+      // 获取搜索字段参数，默认搜索所有字段
+      const searchFields = c.req.query('searchFields') || 'all';
       const searchPattern = `%${search}%`;
-      params.push(searchPattern, searchPattern, searchPattern);
+      
+      if (searchFields === 'all') {
+        // 搜索所有字段
+        whereClause += " AND (name LIKE ? OR company_name LIKE ? OR description LIKE ? OR category LIKE ? OR sku LIKE ?)";
+        params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
+      } else {
+        // 搜索指定字段
+        const fields = searchFields.split(',');
+        const validFields = ['name', 'company_name', 'description', 'category', 'sku'];
+        const fieldConditions = [];
+        
+        fields.forEach(field => {
+          if (validFields.includes(field.trim())) {
+            fieldConditions.push(`${field.trim()} LIKE ?`);
+            params.push(searchPattern);
+          }
+        });
+        
+        if (fieldConditions.length > 0) {
+          whereClause += " AND (" + fieldConditions.join(' OR ') + ")";
+        }
+      }
     }
     
     if (company) {
@@ -350,6 +372,43 @@ app.post('/api/products/batch', async (c) => {
   }
 });
 
+// 获取搜索字段信息
+app.get('/api/search-fields', async (c) => {
+  const { env } = c;
+  
+  try {
+    // 获取各字段的统计信息
+    const fieldStats = await env.DB.prepare(`
+      SELECT 
+        COUNT(DISTINCT company_name) as unique_companies,
+        COUNT(DISTINCT category) as unique_categories,
+        COUNT(DISTINCT SUBSTR(sku, 1, 3)) as sku_prefixes
+      FROM products WHERE status = 'active'
+    `).first();
+    
+    return c.json({
+      success: true,
+      data: {
+        searchableFields: [
+          { field: 'name', label: '商品名称', description: '搜索商品名称' },
+          { field: 'company_name', label: '公司名称', description: `搜索 ${fieldStats?.unique_companies || 0} 家公司` },
+          { field: 'description', label: '商品描述', description: '搜索商品详细描述' },
+          { field: 'category', label: '商品分类', description: `搜索 ${fieldStats?.unique_categories || 0} 个分类` },
+          { field: 'sku', label: '商品编号', description: `搜索商品SKU编号` }
+        ],
+        searchModes: [
+          { mode: 'all', label: '全字段搜索', description: '在所有字段中搜索关键词' },
+          { mode: 'specific', label: '指定字段搜索', description: '在选定的字段中搜索' }
+        ]
+      }
+    });
+    
+  } catch (error) {
+    console.error('Get search fields error:', error);
+    return c.json({ success: false, error: '获取搜索字段信息失败' }, 500);
+  }
+});
+
 // 获取统计信息
 app.get('/api/stats', async (c) => {
   const { env } = c;
@@ -402,17 +461,37 @@ app.get('/api/stats', async (c) => {
   }
 });
 
-// 全文搜索商品
+// 全文搜索商品 - 支持字段指定搜索
 app.get('/api/search', async (c) => {
   const { env } = c;
   const query = c.req.query('q') || '';
   const limit = parseInt(c.req.query('limit') || '20');
+  const searchFields = c.req.query('searchFields') || 'all';
   
   if (!query.trim()) {
     return c.json({ success: false, error: '搜索关键词不能为空' }, 400);
   }
   
   try {
+    let ftsQuery = `"${query}"`;
+    
+    // 如果指定了搜索字段，构建字段特定的FTS查询
+    if (searchFields !== 'all') {
+      const fields = searchFields.split(',');
+      const validFields = ['name', 'company_name', 'description'];
+      const fieldQueries = [];
+      
+      fields.forEach(field => {
+        if (validFields.includes(field.trim())) {
+          fieldQueries.push(`${field.trim()}:"${query}"`);
+        }
+      });
+      
+      if (fieldQueries.length > 0) {
+        ftsQuery = fieldQueries.join(' OR ');
+      }
+    }
+    
     // 使用FTS5全文搜索
     const result = await env.DB.prepare(`
       SELECT p.id, p.name, p.company_name, p.price, p.stock, p.description, 
@@ -422,12 +501,14 @@ app.get('/api/search', async (c) => {
       WHERE products_fts MATCH ? AND p.status = 'active'
       ORDER BY bm25(products_fts)
       LIMIT ?
-    `).bind(`"${query}"`, limit).all();
+    `).bind(ftsQuery, limit).all();
     
     return c.json({
       success: true,
       data: result.results,
-      query
+      query,
+      searchFields,
+      ftsQuery
     });
     
   } catch (error) {

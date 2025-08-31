@@ -212,14 +212,68 @@ function showProducts() {
         
         '<!-- 搜索区域 -->' +
         '<div class="bg-white rounded-lg shadow-md p-6 mb-6">' +
+            '<!-- 搜索输入行 -->' +
             '<div class="flex items-center space-x-4 mb-4">' +
                 '<input type="text" id="searchInput" class="flex-1 form-input" placeholder="输入搜索关键词">' +
+                '<button onclick="toggleAdvancedSearch()" class="btn-secondary" id="advancedToggle">' +
+                    '<i class="fas fa-filter mr-2"></i>高级搜索' +
+                '</button>' +
                 '<button onclick="searchProducts()" class="btn-primary">' +
                     '<i class="fas fa-search mr-2"></i>搜索' +
                 '</button>' +
                 '<button onclick="clearSearch()" class="btn-secondary">' +
                     '<i class="fas fa-times mr-2"></i>清空' +
                 '</button>' +
+            '</div>' +
+            
+            '<!-- 高级搜索选项 -->' +
+            '<div id="advancedSearchOptions" class="hidden border-t pt-4">' +
+                '<div class="mb-4">' +
+                    '<label class="block text-sm font-medium text-gray-700 mb-2">搜索字段:</label>' +
+                    '<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">' +
+                        '<label class="flex items-center space-x-2">' +
+                            '<input type="checkbox" value="name" class="search-field-checkbox" checked>' +
+                            '<span class="text-sm">商品名称</span>' +
+                        '</label>' +
+                        '<label class="flex items-center space-x-2">' +
+                            '<input type="checkbox" value="company_name" class="search-field-checkbox" checked>' +
+                            '<span class="text-sm">公司名称</span>' +
+                        '</label>' +
+                        '<label class="flex items-center space-x-2">' +
+                            '<input type="checkbox" value="description" class="search-field-checkbox" checked>' +
+                            '<span class="text-sm">商品描述</span>' +
+                        '</label>' +
+                        '<label class="flex items-center space-x-2">' +
+                            '<input type="checkbox" value="category" class="search-field-checkbox" checked>' +
+                            '<span class="text-sm">商品分类</span>' +
+                        '</label>' +
+                        '<label class="flex items-center space-x-2">' +
+                            '<input type="checkbox" value="sku" class="search-field-checkbox" checked>' +
+                            '<span class="text-sm">商品编号</span>' +
+                        '</label>' +
+                    '</div>' +
+                '</div>' +
+                
+                '<div class="grid grid-cols-1 md:grid-cols-3 gap-4">' +
+                    '<div>' +
+                        '<label class="block text-sm font-medium text-gray-700 mb-1">公司筛选:</label>' +
+                        '<input type="text" id="companyFilter" class="form-input" placeholder="公司名称">' +
+                    '</div>' +
+                    '<div>' +
+                        '<label class="block text-sm font-medium text-gray-700 mb-1">分类筛选:</label>' +
+                        '<input type="text" id="categoryFilter" class="form-input" placeholder="商品分类">' +
+                    '</div>' +
+                    '<div class="grid grid-cols-2 gap-2">' +
+                        '<div>' +
+                            '<label class="block text-sm font-medium text-gray-700 mb-1">最低价格:</label>' +
+                            '<input type="number" id="minPriceFilter" class="form-input" placeholder="0">' +
+                        '</div>' +
+                        '<div>' +
+                            '<label class="block text-sm font-medium text-gray-700 mb-1">最高价格:</label>' +
+                            '<input type="number" id="maxPriceFilter" class="form-input" placeholder="无限制">' +
+                        '</div>' +
+                    '</div>' +
+                '</div>' +
             '</div>' +
         '</div>' +
         
@@ -235,17 +289,121 @@ function showProducts() {
         '<div id="pagination" class="flex justify-center mt-6"></div>' +
     '</div>';
     
-    // 绑定回车键搜索
+    // 绑定搜索输入事件
     const searchInput = document.getElementById('searchInput');
     if (searchInput) {
+        // 回车键搜索
         searchInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
                 searchProducts();
             }
         });
+        
+        // 实时搜索建议 (延迟执行)
+        let searchTimeout;
+        searchInput.addEventListener('input', function(e) {
+            clearTimeout(searchTimeout);
+            const value = e.target.value.trim();
+            
+            if (value.length >= 2) {
+                searchTimeout = setTimeout(function() {
+                    showSearchSuggestions(value);
+                }, 500);
+            } else {
+                hideSearchSuggestions();
+            }
+        });
     }
     
+    // 绑定高级搜索字段的回车键事件
+    const advancedInputs = ['companyFilter', 'categoryFilter', 'minPriceFilter', 'maxPriceFilter'];
+    advancedInputs.forEach(function(inputId) {
+        const input = document.getElementById(inputId);
+        if (input) {
+            input.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    searchProducts();
+                }
+            });
+        }
+    });
+    
     loadProducts();
+}
+
+// 显示搜索建议
+function showSearchSuggestions(query) {
+    // 获取当前选中的搜索字段
+    const selectedFields = [];
+    const checkboxes = document.querySelectorAll('.search-field-checkbox:checked');
+    checkboxes.forEach(function(checkbox) {
+        selectedFields.push(checkbox.value);
+    });
+    
+    const searchFields = selectedFields.length > 0 && selectedFields.length < 5 
+        ? selectedFields.join(',') : 'all';
+    
+    fetch('/api/search?q=' + encodeURIComponent(query) + '&limit=5&searchFields=' + searchFields)
+        .then(function(response) {
+            return response.json();
+        })
+        .then(function(data) {
+            if (data.success && data.data && data.data.length > 0) {
+                renderSearchSuggestions(data.data);
+            } else {
+                hideSearchSuggestions();
+            }
+        })
+        .catch(function(error) {
+            console.error('搜索建议失败:', error);
+            hideSearchSuggestions();
+        });
+}
+
+// 渲染搜索建议
+function renderSearchSuggestions(suggestions) {
+    const searchInput = document.getElementById('searchInput');
+    if (!searchInput) return;
+    
+    // 创建建议容器
+    let suggestionsContainer = document.getElementById('searchSuggestions');
+    if (!suggestionsContainer) {
+        suggestionsContainer = document.createElement('div');
+        suggestionsContainer.id = 'searchSuggestions';
+        suggestionsContainer.className = 'absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1';
+        searchInput.parentNode.style.position = 'relative';
+        searchInput.parentNode.appendChild(suggestionsContainer);
+    }
+    
+    let html = '';
+    suggestions.forEach(function(item) {
+        html += '<div class="p-3 hover:bg-gray-100 cursor-pointer border-b border-gray-200 suggestion-item" onclick="selectSuggestion(\'' + 
+            item.name.replace(/'/g, "\\'") + '\')">' +
+            '<div class="font-medium text-gray-900">' + item.name + '</div>' +
+            '<div class="text-sm text-gray-600">' + item.company_name + ' • ¥' + item.price + '</div>' +
+        '</div>';
+    });
+    
+    suggestionsContainer.innerHTML = html;
+    suggestionsContainer.style.display = 'block';
+}
+
+// 隐藏搜索建议
+function hideSearchSuggestions() {
+    const suggestionsContainer = document.getElementById('searchSuggestions');
+    if (suggestionsContainer) {
+        suggestionsContainer.style.display = 'none';
+    }
+}
+
+// 选择搜索建议
+function selectSuggestion(suggestion) {
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.value = suggestion;
+        hideSearchSuggestions();
+        searchProducts();
+    }
 }
 
 // 加载商品数据
@@ -392,21 +550,95 @@ function searchProducts() {
     const searchInput = document.getElementById('searchInput');
     const searchValue = searchInput ? searchInput.value.trim() : '';
     
+    // 重置过滤条件
     window.appState.currentFilters = {};
+    
+    // 添加搜索关键词
     if (searchValue) {
         window.appState.currentFilters.search = searchValue;
+        
+        // 获取选中的搜索字段
+        const selectedFields = [];
+        const checkboxes = document.querySelectorAll('.search-field-checkbox:checked');
+        checkboxes.forEach(function(checkbox) {
+            selectedFields.push(checkbox.value);
+        });
+        
+        // 如果没有全选，则指定搜索字段
+        if (selectedFields.length > 0 && selectedFields.length < 5) {
+            window.appState.currentFilters.searchFields = selectedFields.join(',');
+        }
     }
     
+    // 添加高级搜索条件
+    const companyFilter = document.getElementById('companyFilter');
+    if (companyFilter && companyFilter.value.trim()) {
+        window.appState.currentFilters.company = companyFilter.value.trim();
+    }
+    
+    const categoryFilter = document.getElementById('categoryFilter');
+    if (categoryFilter && categoryFilter.value.trim()) {
+        window.appState.currentFilters.category = categoryFilter.value.trim();
+    }
+    
+    const minPriceFilter = document.getElementById('minPriceFilter');
+    if (minPriceFilter && minPriceFilter.value) {
+        window.appState.currentFilters.minPrice = minPriceFilter.value;
+    }
+    
+    const maxPriceFilter = document.getElementById('maxPriceFilter');
+    if (maxPriceFilter && maxPriceFilter.value) {
+        window.appState.currentFilters.maxPrice = maxPriceFilter.value;
+    }
+    
+    console.log('当前搜索条件:', window.appState.currentFilters);
     loadProducts(1);
+}
+
+// 切换高级搜索选项
+function toggleAdvancedSearch() {
+    const options = document.getElementById('advancedSearchOptions');
+    const toggle = document.getElementById('advancedToggle');
+    
+    if (options.classList.contains('hidden')) {
+        options.classList.remove('hidden');
+        toggle.innerHTML = '<i class="fas fa-filter mr-2"></i>收起高级';
+    } else {
+        options.classList.add('hidden');
+        toggle.innerHTML = '<i class="fas fa-filter mr-2"></i>高级搜索';
+    }
 }
 
 // 清空搜索
 function clearSearch() {
     console.log('清空搜索');
+    
+    // 清空搜索输入框
     const searchInput = document.getElementById('searchInput');
     if (searchInput) {
         searchInput.value = '';
     }
+    
+    // 清空高级搜索字段
+    const companyFilter = document.getElementById('companyFilter');
+    if (companyFilter) companyFilter.value = '';
+    
+    const categoryFilter = document.getElementById('categoryFilter');
+    if (categoryFilter) categoryFilter.value = '';
+    
+    const minPriceFilter = document.getElementById('minPriceFilter');
+    if (minPriceFilter) minPriceFilter.value = '';
+    
+    const maxPriceFilter = document.getElementById('maxPriceFilter');
+    if (maxPriceFilter) maxPriceFilter.value = '';
+    
+    // 重新选中所有搜索字段
+    const checkboxes = document.querySelectorAll('.search-field-checkbox');
+    checkboxes.forEach(function(checkbox) {
+        checkbox.checked = true;
+    });
+    
+    // 清空过滤条件并重新加载
     window.appState.currentFilters = {};
     loadProducts(1);
 }
