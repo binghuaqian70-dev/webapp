@@ -129,7 +129,9 @@ const adminMiddleware = async (c: any, next: any) => {
 app.use('/api/products*', authMiddleware)
 app.use('/api/stats', authMiddleware)
 app.use('/api/search', authMiddleware)
-app.use('/api/users*', authMiddleware, adminMiddleware) // 用户管理需要管理员权限
+// 用户管理API需要认证和管理员权限  
+app.use('/api/users', authMiddleware)
+app.use('/api/users/*', authMiddleware)
 
 // 静态文件服务
 app.use('/static/*', serveStatic({ root: './public' }))
@@ -323,6 +325,11 @@ app.post('/api/auth/register', async (c) => {
 
 // 获取用户列表API（仅管理员）
 app.get('/api/users', async (c) => {
+  // 验证管理员权限
+  const user = c.get('user');
+  if (!user || user.role !== 'admin') {
+    return c.json({ success: false, error: '需要管理员权限' }, 403);
+  }
   try {
     const { env } = c;
     const page = parseInt(c.req.query('page') || '1');
@@ -392,6 +399,11 @@ app.get('/api/users', async (c) => {
 
 // 更新用户信息API（仅管理员）
 app.put('/api/users/:id', async (c) => {
+  // 验证管理员权限
+  const user = c.get('user');
+  if (!user || user.role !== 'admin') {
+    return c.json({ success: false, error: '需要管理员权限' }, 403);
+  }
   try {
     const { env } = c;
     const userId = c.req.param('id');
@@ -480,6 +492,11 @@ app.put('/api/users/:id', async (c) => {
 
 // 删除用户API（仅管理员）
 app.delete('/api/users/:id', async (c) => {
+  // 验证管理员权限
+  const user = c.get('user');
+  if (!user || user.role !== 'admin') {
+    return c.json({ success: false, error: '需要管理员权限' }, 403);
+  }
   try {
     const { env } = c;
     const userId = c.req.param('id');
@@ -525,6 +542,11 @@ app.delete('/api/users/:id', async (c) => {
 
 // 重置用户密码API（仅管理员）
 app.post('/api/users/:id/reset-password', async (c) => {
+  // 验证管理员权限
+  const user = c.get('user');
+  if (!user || user.role !== 'admin') {
+    return c.json({ success: false, error: '需要管理员权限' }, 403);
+  }
   try {
     const { env } = c;
     const userId = c.req.param('id');
