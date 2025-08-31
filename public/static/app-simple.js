@@ -171,10 +171,15 @@ function showMainApp() {
         usernameDisplay.textContent = window.appState.currentUser.username;
     }
     
-    // 如果是管理员，显示用户管理菜单
+    // 根据用户角色控制用户管理菜单显示
     const userManagementLink = document.getElementById('user-management-link');
-    if (userManagementLink && window.appState.currentUser && window.appState.currentUser.role === 'admin') {
-        userManagementLink.style.display = 'block';
+    if (userManagementLink) {
+        if (window.appState.currentUser && window.appState.currentUser.role === 'admin') {
+            userManagementLink.style.display = 'block';
+        } else {
+            // 普通用户完全隐藏用户管理菜单
+            userManagementLink.style.display = 'none';
+        }
     }
     
     // 初始化主应用
@@ -296,7 +301,13 @@ function showPage(page) {
             showImport();
             break;
         case 'users':
-            showUsers();
+            // 只有管理员才能访问用户管理页面
+            if (window.appState.currentUser && window.appState.currentUser.role === 'admin') {
+                showUsers();
+            } else {
+                showPage('dashboard'); // 普通用户重定向到首页
+                showMessage('您没有权限访问用户管理功能', 'error');
+            }
             break;
         default:
             showDashboard();
@@ -1304,6 +1315,13 @@ window.submitUserForm = submitUserForm;
 
 // 显示用户管理页面
 function showUsers() {
+    // 权限检查：只有管理员可以访问用户管理功能
+    if (!window.appState.currentUser || window.appState.currentUser.role !== 'admin') {
+        showMessage('您没有权限访问用户管理功能', 'error');
+        showPage('dashboard');
+        return;
+    }
+    
     console.log('显示用户管理页面');
     
     const content = `
@@ -1448,6 +1466,12 @@ function showUsers() {
 
 // 加载用户列表
 function loadUsers(page = 1) {
+    // 权限检查：只有管理员可以加载用户列表
+    if (!window.appState.currentUser || window.appState.currentUser.role !== 'admin') {
+        showMessage('您没有权限访问用户数据', 'error');
+        return;
+    }
+    
     const search = document.getElementById('userSearchInput')?.value || '';
     const role = document.getElementById('roleFilter')?.value || '';
     const status = document.getElementById('statusFilter')?.value || '';
@@ -1597,6 +1621,12 @@ function renderUsersTable(users, pagination) {
 
 // 添加用户
 function addUser() {
+    // 权限检查：只有管理员可以添加用户
+    if (!window.appState.currentUser || window.appState.currentUser.role !== 'admin') {
+        showMessage('您没有权限执行此操作', 'error');
+        return;
+    }
+    
     document.getElementById('userModalTitle').textContent = '添加用户';
     document.getElementById('userId').value = '';
     document.getElementById('userUsername').value = '';
@@ -1614,6 +1644,12 @@ function addUser() {
 
 // 编辑用户
 function editUser(userId) {
+    // 权限检查：只有管理员可以编辑用户
+    if (!window.appState.currentUser || window.appState.currentUser.role !== 'admin') {
+        showMessage('您没有权限执行此操作', 'error');
+        return;
+    }
+    
     // 从 API 获取用户详情
     makeAuthenticatedRequest(`/api/users?search=${userId}&limit=1`)
         .then(response => response.json())
@@ -1651,6 +1687,12 @@ function closeUserModal() {
 // 提交用户表单
 function submitUserForm(event) {
     event.preventDefault();
+    
+    // 权限检查：只有管理员可以提交用户表单
+    if (!window.appState.currentUser || window.appState.currentUser.role !== 'admin') {
+        showMessage('您没有权限执行此操作', 'error');
+        return;
+    }
     
     const userId = document.getElementById('userId').value;
     const username = document.getElementById('userUsername').value;
@@ -1702,6 +1744,12 @@ function submitUserForm(event) {
 
 // 删除用户
 function deleteUser(userId) {
+    // 权限检查：只有管理员可以删除用户
+    if (!window.appState.currentUser || window.appState.currentUser.role !== 'admin') {
+        showMessage('您没有权限执行此操作', 'error');
+        return;
+    }
+    
     if (!confirm('确定要删除这个用户吗？此操作不可恢复。')) {
         return;
     }
@@ -1726,6 +1774,12 @@ function deleteUser(userId) {
 
 // 重置用户密码
 function resetUserPassword(userId) {
+    // 权限检查：只有管理员可以重置用户密码
+    if (!window.appState.currentUser || window.appState.currentUser.role !== 'admin') {
+        showMessage('您没有权限执行此操作', 'error');
+        return;
+    }
+    
     const newPassword = prompt('请输入新密码（至少6位，包含字母和数字）:');
     
     if (!newPassword) {
@@ -1760,6 +1814,12 @@ function resetUserPassword(userId) {
 
 // 搜索用户
 function searchUsers() {
+    // 权限检查：只有管理员可以搜索用户
+    if (!window.appState.currentUser || window.appState.currentUser.role !== 'admin') {
+        showMessage('您没有权限搜索用户数据', 'error');
+        return;
+    }
+    
     window.appState.currentUserPage = 1;
     loadUsers(1);
 }
