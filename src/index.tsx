@@ -1200,7 +1200,7 @@ app.get('/', (c) => {
                 <div class="mt-6 text-center">
                     <p class="text-sm text-gray-600">
                         没有账户？
-                        <a href="/register.html" class="text-blue-600 hover:text-blue-700 font-medium">立即注册</a>
+                        <a href="/register" class="text-blue-600 hover:text-blue-700 font-medium">立即注册</a>
                     </p>
                 </div>
             </div>
@@ -1274,8 +1274,8 @@ app.get('/', (c) => {
   `)
 })
 
-// 注册页面路由
-app.get('/register.html', (c) => {
+// 注册页面路由  
+app.get('/register', (c) => {
   return c.html(`
     <!DOCTYPE html>
     <html lang="zh-CN">
