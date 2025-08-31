@@ -6,6 +6,7 @@
 - **技术栈**: Hono + TypeScript + Cloudflare D1 + TailwindCSS
 
 ## 在线访问
+- **生产环境**: https://webapp-product-mgmt.pages.dev ✅
 - **开发环境**: https://3000-i83lokb7dctds9y855dsf-6532622b.e2b.dev
 - **API健康检查**: https://3000-i83lokb7dctds9y855dsf-6532622b.e2b.dev/api/stats
 
@@ -127,11 +128,14 @@ iPhone 15 Pro,苹果公司,8999.00,50,最新款iPhone,数码电子,APPLE-IP15P-0
 - **版本控制**: Git
 
 ## 部署信息
-- **平台**: Cloudflare Pages (开发中)
-- **状态**: ✅ 开发环境运行正常
-- **数据库**: 本地SQLite开发环境
+- **平台**: Cloudflare Pages ✅ **已部署**
+- **生产URL**: https://webapp-product-mgmt.pages.dev
+- **项目名称**: webapp-product-mgmt
+- **状态**: ✅ 生产环境已上线
+- **数据库**: Cloudflare D1分布式数据库
 - **性能**: 支持5000+商品数据的毫秒级查询
 - **最后更新**: 2025-08-31
+- **部署分支**: main
 
 ## 性能表现
 - **查询响应**: < 200ms (5000+商品)
@@ -140,8 +144,9 @@ iPhone 15 Pro,苹果公司,8999.00,50,最新款iPhone,数码电子,APPLE-IP15P-0
 - **并发处理**: 基于Cloudflare Workers边缘计算
 
 ## 后续规划
-1. 部署到Cloudflare Pages生产环境
-2. 添加商品图片上传功能
-3. 实现用户权限管理
-4. 添加库存预警功能
-5. 导出功能和报表生成
+1. ✅ 部署到Cloudflare Pages生产环境
+2. 为生产数据库导入测试数据
+3. 添加商品图片上传功能
+4. 实现用户权限管理
+5. 添加库存预警功能
+6. 导出功能和报表生成
