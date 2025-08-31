@@ -1,4 +1,4 @@
-console.log('简化版JavaScript开始加载...');
+// 产品管理系统 - 前端JavaScript
 
 // 全局状态
 window.appState = {
@@ -6,8 +6,181 @@ window.appState = {
     currentProductPage: 1,
     currentFilters: {},
     products: [],
-    stats: {}
+    stats: {},
+    // 新增认证状态
+    isAuthenticated: false,
+    authToken: null
 };
+
+// 认证相关函数
+function getAuthToken() {
+    return localStorage.getItem('authToken');
+}
+
+function setAuthToken(token) {
+    if (token) {
+        localStorage.setItem('authToken', token);
+        window.appState.authToken = token;
+        window.appState.isAuthenticated = true;
+    } else {
+        localStorage.removeItem('authToken');
+        window.appState.authToken = null;
+        window.appState.isAuthenticated = false;
+    }
+}
+
+function checkAuthentication() {
+    const token = getAuthToken();
+    if (!token) {
+        showLoginPage();
+        return false;
+    }
+    
+    // 验证token有效性
+    return fetch('/api/auth/verify', {
+        method: 'GET',
+        headers: {
+            'Authorization': 'Bearer ' + token
+        }
+    })
+    .then(function(response) {
+        if (response.ok) {
+            window.appState.isAuthenticated = true;
+            window.appState.authToken = token;
+            return true;
+        } else {
+            setAuthToken(null);
+            showLoginPage();
+            return false;
+        }
+    })
+    .catch(function(error) {
+        console.error('Token验证失败:', error);
+        setAuthToken(null);
+        showLoginPage();
+        return false;
+    });
+}
+
+function showLoginPage() {
+    
+    // 显示HTML中的登录页面
+    const loginPage = document.getElementById('login-page');
+    const mainApp = document.getElementById('main-app');
+    
+    if (loginPage) {
+        loginPage.classList.remove('hidden');
+    }
+    if (mainApp) {
+        mainApp.classList.add('hidden');
+    }
+    
+    // HTML中已有onsubmit事件，无需重复绑定
+}
+
+function handleLogin(event) {
+    event.preventDefault();
+    
+    const username = document.getElementById('username').value;
+    const password = document.getElementById('password').value;
+    
+    // 创建错误显示区域（如果不存在）
+    let errorDiv = document.getElementById('loginError');
+    if (!errorDiv) {
+        errorDiv = document.createElement('div');
+        errorDiv.id = 'loginError';
+        errorDiv.className = 'hidden text-red-600 text-sm text-center mt-4';
+        const form = document.getElementById('login-form');
+        if (form) {
+            form.appendChild(errorDiv);
+        }
+    }
+    
+    // 隐藏之前的错误消息
+    errorDiv.classList.add('hidden');
+    
+    // 显示加载状态
+    const submitButton = event.target.querySelector('button[type="submit"]');
+    if (!submitButton) {
+        return false;
+    }
+    
+    const originalText = submitButton.innerHTML;
+    submitButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>登录中...';
+    submitButton.disabled = true;
+    
+    fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ username: username, password: password })
+    })
+    .then(function(response) {
+        return response.json();
+    })
+    .then(function(data) {
+        if (data.success) {
+            // 登录成功
+            setAuthToken(data.data.token);
+            showMainApp();
+        } else {
+            // 登录失败
+            console.log('登录失败:', data.error);
+            errorDiv.textContent = data.error || '登录失败';
+            errorDiv.classList.remove('hidden');
+        }
+    })
+    .catch(function(error) {
+        errorDiv.textContent = '网络连接失败，请重试';
+        errorDiv.classList.remove('hidden');
+    })
+    .finally(function() {
+        // 恢复按钮状态
+        submitButton.innerHTML = originalText;
+        submitButton.disabled = false;
+    });
+    
+    return false;
+}
+
+function showMainApp() {
+    console.log('显示主应用界面');
+    
+    // 隐藏登录页面，显示主应用
+    const loginPage = document.getElementById('login-page');
+    const mainApp = document.getElementById('main-app');
+    
+    if (loginPage) {
+        loginPage.classList.add('hidden');
+    }
+    if (mainApp) {
+        mainApp.classList.remove('hidden');
+    }
+    
+    // 初始化主应用
+    showPage('dashboard');
+}
+
+function handleLogout() {
+    const token = getAuthToken();
+    if (token) {
+        // 向服务器发送登出请求
+        fetch('/api/auth/logout', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + token
+            }
+        })
+        .catch(function(error) {
+            // 忽略登出请求错误
+        });
+    }
+    
+    // 清除本地状态
+    setAuthToken(null);
+    showLoginPage();
+}
 
 // 显示加载状态
 function showLoading() {
@@ -22,6 +195,28 @@ function hideLoading() {
     if (loading) {
         loading.classList.add('hidden');
     }
+}
+
+// 统一的API请求函数，自动处理认证
+function makeAuthenticatedRequest(url, options) {
+    options = options || {};
+    options.headers = options.headers || {};
+    
+    const token = getAuthToken();
+    if (token) {
+        options.headers['Authorization'] = 'Bearer ' + token;
+    }
+    
+    return fetch(url, options)
+        .then(function(response) {
+            if (response.status === 401) {
+                // 认证失败，重新登录
+                setAuthToken(null);
+                showLoginPage();
+                throw new Error('认证失败，请重新登录');
+            }
+            return response;
+        });
 }
 
 // 显示消息
@@ -91,13 +286,12 @@ function showDashboard() {
     console.log('显示仪表板');
     showLoading();
     
-    // 使用原生fetch而不是axios
-    fetch('/api/stats')
+    // 使用认证请求
+    makeAuthenticatedRequest('/api/stats')
         .then(function(response) {
             return response.json();
         })
         .then(function(data) {
-            console.log('获取到统计数据:', data);
             window.appState.stats = data.data;
             renderDashboard();
         })
@@ -343,7 +537,7 @@ function showSearchSuggestions(query) {
     const searchFields = selectedFields.length > 0 && selectedFields.length < 5 
         ? selectedFields.join(',') : 'all';
     
-    fetch('/api/search?q=' + encodeURIComponent(query) + '&limit=5&searchFields=' + searchFields)
+    makeAuthenticatedRequest('/api/search?q=' + encodeURIComponent(query) + '&limit=5&searchFields=' + searchFields)
         .then(function(response) {
             return response.json();
         })
@@ -429,7 +623,7 @@ function loadProducts(page) {
         }
     });
     
-    fetch('/api/products?' + params.toString())
+    makeAuthenticatedRequest('/api/products?' + params.toString())
         .then(function(response) {
             return response.json();
         })
@@ -731,7 +925,7 @@ function submitProductForm(event, editId) {
     const url = editId ? '/api/products/' + editId : '/api/products';
     const method = editId ? 'PUT' : 'POST';
     
-    fetch(url, {
+    makeAuthenticatedRequest(url, {
         method: method,
         headers: {
             'Content-Type': 'application/json'
@@ -765,7 +959,7 @@ function submitProductForm(event, editId) {
 function loadProductForEdit(id) {
     console.log('加载编辑商品数据:', id);
     
-    fetch('/api/products/' + id)
+    makeAuthenticatedRequest('/api/products/' + id)
         .then(function(response) {
             return response.json();
         })
@@ -805,7 +999,7 @@ function deleteProduct(id) {
     
     showLoading();
     
-    fetch('/api/products/' + id, {
+    makeAuthenticatedRequest('/api/products/' + id, {
         method: 'DELETE'
     })
     .then(function(response) {
@@ -955,7 +1149,7 @@ function handleCSVFile(input) {
 function importProducts(products) {
     console.log('开始导入商品:', products.length, '条');
     
-    fetch('/api/products/batch', {
+    makeAuthenticatedRequest('/api/products/batch', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -1037,10 +1231,43 @@ document.addEventListener('DOMContentLoaded', function() {
     
     console.log('开始初始化应用...');
     
-    // 设置默认页面
-    showPage('dashboard');
+    // 检查认证状态
+    const authCheck = checkAuthentication();
+    
+    // 如果返回的是Promise（异步检查），等待结果
+    if (authCheck && typeof authCheck.then === 'function') {
+        authCheck.then(function(isAuthenticated) {
+            if (isAuthenticated) {
+                showMainApp();
+            }
+        });
+    } else if (authCheck === false) {
+        // 同步检查失败，显示登录页面
+        showLoginPage();
+    } else {
+        // 已认证，显示主应用
+        showMainApp();
+    }
     
     console.log('应用初始化完成');
 });
 
-console.log('简化版JavaScript加载完成');
+// 将主要函数暴露到全局作用域
+window.handleLogin = handleLogin;
+window.showPage = showPage;
+window.handleLogout = handleLogout;
+window.showProducts = showProducts;
+window.showAddProduct = showAddProduct;
+window.showImport = showImport;
+window.showDashboard = showDashboard;
+window.editProduct = editProduct;
+window.deleteProduct = deleteProduct;
+window.submitProductForm = submitProductForm;
+window.searchProducts = searchProducts;
+window.clearSearch = clearSearch;
+window.toggleAdvancedSearch = toggleAdvancedSearch;
+window.selectSuggestion = selectSuggestion;
+window.loadProducts = loadProducts;
+window.handleCSVFile = handleCSVFile;
+
+// JavaScript模块加载完成

@@ -1,10 +1,12 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { serveStatic } from 'hono/cloudflare-workers'
+import { jwt, sign, verify } from 'hono/jwt'
 
 // 定义环境绑定类型
 type Bindings = {
   DB: D1Database;
+  JWT_SECRET?: string;
 }
 
 // 商品数据类型
@@ -24,11 +26,121 @@ type Product = {
 
 const app = new Hono<{ Bindings: Bindings }>()
 
+// 认证配置
+const AUTH_CONFIG = {
+  username: 'admin',
+  password: 'admin',
+  jwtSecret: 'your-jwt-secret-key-2025', // 在生产环境中应使用环境变量
+  tokenExpiry: '24h'
+}
+
 // 启用CORS
 app.use('/api/*', cors())
 
+// JWT认证中间件
+const authMiddleware = async (c: any, next: any) => {
+  // 跳过登录和公共API
+  const path = c.req.path
+  if (path === '/api/auth/login' || path === '/api/search-fields' || path === '/' || path.startsWith('/static/')) {
+    return next()
+  }
+  
+  const authHeader = c.req.header('Authorization')
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return c.json({ success: false, error: '未授权访问' }, 401)
+  }
+  
+  const token = authHeader.substring(7)
+  try {
+    const payload = await verify(token, AUTH_CONFIG.jwtSecret)
+    c.set('user', payload)
+    return next()
+  } catch (error) {
+    return c.json({ success: false, error: '令牌无效或已过期' }, 401)
+  }
+}
+
+// 应用认证中间件到受保护的API路由
+app.use('/api/products*', authMiddleware)
+app.use('/api/stats', authMiddleware)
+app.use('/api/search', authMiddleware)
+
 // 静态文件服务
 app.use('/static/*', serveStatic({ root: './public' }))
+
+// 认证相关API
+app.post('/api/auth/login', async (c) => {
+  try {
+    const { username, password } = await c.req.json()
+    
+    // 验证用户名和密码
+    if (username === AUTH_CONFIG.username && password === AUTH_CONFIG.password) {
+      // 生成JWT令牌
+      const payload = {
+        username: username,
+        role: 'admin',
+        iat: Math.floor(Date.now() / 1000),
+        exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60) // 24小时过期
+      }
+      
+      const token = await sign(payload, AUTH_CONFIG.jwtSecret)
+      
+      return c.json({
+        success: true,
+        data: {
+          token,
+          user: {
+            username: username,
+            role: 'admin'
+          }
+        }
+      })
+    } else {
+      return c.json({ 
+        success: false, 
+        error: '用户名或密码错误' 
+      }, 401)
+    }
+  } catch (error) {
+    console.error('Login error:', error)
+    return c.json({ 
+      success: false, 
+      error: '登录失败，请检查输入格式' 
+    }, 400)
+  }
+})
+
+// 验证令牌API
+app.get('/api/auth/verify', async (c) => {
+  const authHeader = c.req.header('Authorization')
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return c.json({ success: false, error: '未提供令牌' }, 401)
+  }
+  
+  const token = authHeader.substring(7)
+  try {
+    const payload = await verify(token, AUTH_CONFIG.jwtSecret)
+    return c.json({
+      success: true,
+      data: {
+        user: {
+          username: payload.username,
+          role: payload.role
+        }
+      }
+    })
+  } catch (error) {
+    return c.json({ success: false, error: '令牌无效或已过期' }, 401)
+  }
+})
+
+// 登出API（客户端处理，服务端返回成功）
+app.post('/api/auth/logout', (c) => {
+  return c.json({
+    success: true,
+    message: '登出成功'
+  })
+})
 
 // 分页查询商品 - 支持多字段搜索
 app.get('/api/products', async (c) => {
@@ -517,6 +629,61 @@ app.get('/api/search', async (c) => {
   }
 });
 
+// 测试登录页面
+app.get('/test', (c) => {
+  return c.html(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Login Test</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+    </head>
+    <body class="p-8">
+        <h1 class="text-2xl mb-4">Login Test</h1>
+        <form id="test-form" class="space-y-4">
+            <div>
+                <label class="block">Username:</label>
+                <input type="text" id="test-username" value="admin" class="border p-2 rounded">
+            </div>
+            <div>
+                <label class="block">Password:</label>
+                <input type="password" id="test-password" value="admin" class="border p-2 rounded">
+            </div>
+            <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded">Test Login</button>
+        </form>
+        <div id="test-result" class="mt-4"></div>
+        
+        <script>
+        document.getElementById('test-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const username = document.getElementById('test-username').value;
+            const password = document.getElementById('test-password').value;
+            
+            console.log('Testing login with:', username, password);
+            
+            fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            })
+            .then(r => r.json())
+            .then(data => {
+                console.log('Login result:', data);
+                document.getElementById('test-result').innerHTML = 
+                    '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+            })
+            .catch(err => {
+                console.error('Error:', err);
+                document.getElementById('test-result').innerHTML = 
+                    '<p class="text-red-500">Error: ' + err.message + '</p>';
+            });
+        });
+        </script>
+    </body>
+    </html>
+  `)
+})
+
 // 主页面
 app.get('/', (c) => {
   return c.html(`
@@ -532,7 +699,39 @@ app.get('/', (c) => {
         <link href="/static/styles.css" rel="stylesheet">
     </head>
     <body class="bg-gray-50">
-        <div id="app">
+        <!-- 登录页面 -->
+        <div id="login-page" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600">
+            <div class="max-w-md w-full bg-white rounded-lg shadow-xl p-8">
+                <div class="text-center mb-8">
+                    <i class="fas fa-boxes text-4xl text-blue-600 mb-4"></i>
+                    <h1 class="text-2xl font-bold text-gray-800">商品管理系统</h1>
+                    <p class="text-gray-600 mt-2">请登录以继续使用</p>
+                </div>
+                
+                <form id="login-form" class="space-y-6" onsubmit="return handleLogin(event)">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">用户名</label>
+                        <input type="text" id="username" class="form-input" placeholder="请输入用户名" required>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">密码</label>
+                        <input type="password" id="password" class="form-input" placeholder="请输入密码" required>
+                    </div>
+                    
+                    <button type="submit" class="w-full btn-primary justify-center">
+                        <i class="fas fa-sign-in-alt mr-2"></i>登录
+                    </button>
+                    
+                    <div id="loginError" class="hidden text-red-600 text-sm text-center"></div>
+                </form>
+                
+
+            </div>
+        </div>
+        
+        <!-- 主应用页面 -->
+        <div id="main-app" class="hidden">
             <div class="min-h-screen flex">
                 <!-- 侧边栏 -->
                 <div class="w-64 bg-white shadow-lg">
@@ -556,6 +755,19 @@ app.get('/', (c) => {
                             <i class="fas fa-upload mr-3"></i>批量导入
                         </a>
                     </nav>
+                    
+                    <!-- 用户信息和登出 -->
+                    <div class="absolute bottom-0 w-64 p-6 border-t border-gray-200">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center">
+                                <i class="fas fa-user-circle text-2xl text-gray-600 mr-3"></i>
+                                <span id="username-display" class="text-sm text-gray-700">admin</span>
+                            </div>
+                            <button onclick="handleLogout()" class="text-gray-500 hover:text-red-600" title="登出">
+                                <i class="fas fa-sign-out-alt"></i>
+                            </button>
+                        </div>
+                    </div>
                 </div>
                 
                 <!-- 主内容区 -->
