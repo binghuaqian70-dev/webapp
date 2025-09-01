@@ -29,7 +29,8 @@ type User = {
   id?: number;
   username: string;
   email: string;
-  password_hash?: string;
+  password?: string;        // 兼容现有数据库字段
+  password_hash?: string;   // 新版本字段
   role: 'admin' | 'user' | 'manager';
   status: 'active' | 'inactive' | 'suspended';
   created_at?: string;
@@ -216,8 +217,9 @@ app.post('/api/auth/login', async (c) => {
       }, 401)
     }
     
-    // 简化版：直接比较明文密码 (应使用password_hash字段)
-    if (password !== user.password_hash) {
+    // 简化版：直接比较明文密码 (兼容现有数据库字段名)
+    const storedPassword = user.password_hash || user.password;
+    if (password !== storedPassword) {
       return c.json({ 
         success: false, 
         error: '用户名或密码错误'
