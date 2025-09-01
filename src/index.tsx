@@ -217,14 +217,35 @@ app.post('/api/auth/login', async (c) => {
       }, 401)
     }
     
-    // 简化版：直接比较明文密码 (兼容现有数据库字段名)
-    const storedPassword = user.password_hash || user.password;
-    if (password !== storedPassword) {
+    // 验证密码（支持哈希密码和明文密码兼容）
+    const storedPasswordHash = user.password_hash || user.password;
+    let passwordValid = false;
+    
+    // 首先尝试哈希验证
+    if (storedPasswordHash && storedPasswordHash.length === 64) {
+      // 假设是哈希值（SHA-256产生64字符十六进制）
+      passwordValid = await verifyPassword(password, storedPasswordHash);
+    } else {
+      // 兼容明文密码
+      passwordValid = password === storedPasswordHash;
+    }
+    
+    if (!passwordValid) {
+      // 记录失败登录尝试
+      await env.DB.prepare(
+        'UPDATE users SET failed_login_attempts = failed_login_attempts + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+      ).bind(user.id).run();
+      
       return c.json({ 
         success: false, 
         error: '用户名或密码错误'
       }, 401)
     }
+    
+    // 清除失败登录记录并更新最后登录时间
+    await env.DB.prepare(
+      'UPDATE users SET failed_login_attempts = 0, account_locked_until = NULL, last_login = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+    ).bind(user.id).run();
     
     // 生成JWT令牌
     const payload = {
@@ -1197,26 +1218,18 @@ app.post('/api/products/import-csv', async (c) => {
       const values = lines[i].split(',');
       const product: any = {};
       
-      // 映射数据到对应字段（使用映射后的标准字段名）
+      // 映射数据到对应字段（使用统一的字段映射）
       headers.forEach((originalHeader, index) => {
-        const mappedField = fieldMapping[originalHeader.trim()] || originalHeader.trim();
+        const cleanHeader = originalHeader.trim();
+        const standardField = fieldMapping[cleanHeader] || cleanHeader;
         let value = values[index]?.trim() || '';
         
-        // 数据已经在整体转换中处理过，这里不需要再次转换
-        
-        if (mappedField === 'price' || mappedField === '售价') {
-          product['price'] = parseFloat(value) || 0;
-        } else if (mappedField === 'stock' || mappedField === '库存') {
-          product['stock'] = parseInt(value) || 0;
-        } else if (mappedField) {
-          // 使用标准字段名存储数据
-          const standardField = mappedField === '商品名称' ? 'name' :
-                               mappedField === '公司名称' ? 'company_name' :
-                               mappedField === '售价' ? 'price' :
-                               mappedField === '库存' ? 'stock' :
-                               mappedField === '分类' ? 'category' :
-                               mappedField === '描述' ? 'description' :
-                               mappedField === 'SKU' ? 'sku' : mappedField;
+        // 根据标准字段名进行数据类型转换
+        if (standardField === 'price') {
+          product[standardField] = parseFloat(value) || 0;
+        } else if (standardField === 'stock') {
+          product[standardField] = parseInt(value) || 0;
+        } else if (standardField) {
           product[standardField] = value;
         }
       });
@@ -1256,7 +1269,7 @@ app.post('/api/products/import-csv', async (c) => {
       
       try {
         // 验证必填字段
-        if (!product.name || !product.company_name || !product.price || product.stock === undefined) {
+        if (!product.name || !product.company_name || product.price === undefined || product.stock === undefined) {
           errors.push(`第${i + 1}行: 商品名称、公司名称、价格和库存为必填字段`);
           errorCount++;
           continue;
