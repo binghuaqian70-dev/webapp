@@ -1104,8 +1104,8 @@ function showImport() {
     '</div>';
 }
 
-// 处理CSV文件（直接使用独立页面成功的逻辑）
-function handleCSVFile(input) {
+// 处理CSV文件（使用智能导入页面的成功逻辑）
+async function handleCSVFile(input) {
     const file = input.files[0];
     if (!file) return;
     
@@ -1123,54 +1123,116 @@ function handleCSVFile(input) {
     
     showLoading();
     
-    // 首先尝试检测文件编码并正确读取
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        try {
-            let csvContent = e.target.result;
-            console.log('📋 读取CSV文件内容，长度:', csvContent.length);
-            console.log('📋 文件内容前100字符:', csvContent.substring(0, 100));
+    try {
+        // 使用智能导入页面的成功方法：直接使用file.text()读取
+        let csvContent = await file.text();
+        console.log('📋 读取CSV文件内容，长度:', csvContent.length);
+        console.log('📋 文件内容前100字符:', csvContent.substring(0, 100));
+        
+        // 使用智能导入页面的编码检测逻辑
+        const encoding = detectEncoding(csvContent);
+        console.log('🔍 检测到编码:', encoding);
+        
+        if (encoding === 'gbk') {
+            console.log('🔄 检测到GBK编码，正在转换为UTF-8...');
+            try {
+                // 使用智能导入页面的转换逻辑
+                const convertedFile = await convertGBKToUTF8(file);
+                csvContent = await convertedFile.text();
+                console.log('✅ 编码转换成功，新长度:', csvContent.length);
+                console.log('✅ 转换后前100字符:', csvContent.substring(0, 100));
+            } catch (error) {
+                console.log('⚠️ 编码转换失败，使用原始内容:', error.message);
+            }
+        } else {
+            console.log('✅ 检测到UTF-8编码，直接使用');
+        }
+        
+        // 调用后端API
+        importCSVContent(csvContent);
+        
+    } catch (error) {
+        console.error('读取CSV文件失败:', error);
+        showMessage('读取CSV文件失败', 'error');
+        hideLoading();
+    }
+}
+
+// 从智能导入页面复制的编码检测函数
+function detectEncoding(text) {
+    // 检测是否包含乱码字符（常见的GBK在UTF-8下的显示）
+    const garbledPatterns = [
+        /��/g,              // 最常见的乱码
+        /���/g,             // 三字节乱码
+        /Ʒ����/g,           // 商品名称的乱码形式
+        /��˾����/g,         // 公司名称的乱码形式
+        /�ۼ�/g,            // 售价的乱码形式
+    ];
+    
+    const hasGarbledText = garbledPatterns.some(pattern => pattern.test(text));
+    
+    // 检测是否包含正常的中文字符
+    const chinesePattern = /[\u4e00-\u9fa5]/g;
+    const hasValidChinese = chinesePattern.test(text);
+    
+    // 如果有乱码且没有正常中文，很可能是编码问题
+    if (hasGarbledText && !hasValidChinese) {
+        return 'gbk';
+    }
+    
+    // 如果有乱码但也有正常中文，可能是混合编码，也尝试转换
+    if (hasGarbledText) {
+        return 'gbk';
+    }
+    
+    return 'utf-8';
+}
+
+// 从智能导入页面复制的GBK转换函数
+async function convertGBKToUTF8(file) {
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            let text = e.target.result;
             
-            // 检测是否包含GBK乱码字符，如果有则标记需要处理
-            const hasGBKIssues = csvContent.includes('��') || 
-                                csvContent.includes('���') || 
-                                /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/.test(csvContent);
+            // GBK到UTF-8字符替换映射（按长度从长到短排序）
+            const gbkMappings = {
+                // 完整的公司名称
+                '�Ŷ����ֿƼ����Ϻ������޹�˾': '信都数字科技（上海）有限公司',
+                // CSV标题
+                '��Ʒ����': '商品名称',
+                '��˾����': '公司名称', 
+                '�ۼ�': '售价',
+                '���': '库存',
+                // 公司名称部分
+                '�Ŷ����ֿƼ': '信都数字科技',
+                '����Ϻ������': '（上海）有限',
+                '����ֿƼ': '数字科技',
+                '�Ϻ������': '（上海）有限',
+                '޹�˾': '公司',
+                // 单个词汇
+                '�Ŷ': '信都',
+                '����': '数字',
+                'ֿƼ': '科技',
+                '�Ϻ�': '（上海）',
+                '����': '有限',
+                'ۼ�': '价格',
+                '��': '',  // 清除特殊乱码字符
+                // 更多常见模式
+                '޹': '公',
+                '˾': '司',
+                'Ϻ': '海'
+            };
             
-            if (hasGBKIssues) {
-                console.log('🔍 检测到可能的GBK编码问题，尝试重新读取...');
-                // 重新使用ArrayBuffer方式读取，然后让后端处理
-                const arrayReader = new FileReader();
-                arrayReader.onload = function(arrayEvent) {
-                    const arrayBuffer = arrayEvent.target.result;
-                    const uint8Array = new Uint8Array(arrayBuffer);
-                    
-                    // 转换为原始字符串（保留原始字节）
-                    let rawContent = '';
-                    for (let i = 0; i < uint8Array.length; i++) {
-                        rawContent += String.fromCharCode(uint8Array[i]);
-                    }
-                    
-                    console.log('🔧 ArrayBuffer读取完成，长度:', rawContent.length);
-                    console.log('🔧 原始内容前100字符:', rawContent.substring(0, 100));
-                    
-                    importCSVContent(rawContent);
-                };
-                arrayReader.readAsArrayBuffer(file);
-                return;
+            for (const [gbk, utf8] of Object.entries(gbkMappings)) {
+                text = text.replace(new RegExp(gbk, 'g'), utf8);
             }
             
-            // 直接调用后端的import-csv API
-            importCSVContent(csvContent);
-            
-        } catch (error) {
-            console.error('读取CSV文件失败:', error);
-            showMessage('读取CSV文件失败', 'error');
-            hideLoading();
-        }
-    };
-    
-    // 首先尝试用UTF-8读取
-    reader.readAsText(file, 'UTF-8');
+            const utf8Blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
+            resolve(new File([utf8Blob], file.name, { type: 'text/csv' }));
+        };
+        reader.readAsText(file);
+    });
 }
 
 // 调用后端CSV导入API（使用独立页面相同的API端点）
