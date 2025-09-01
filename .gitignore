@@ -9,11 +9,13 @@ pids
 
 # Compiled binary addons
 build
-dist
+dist/
 
 # dotenv environment variables file
 .env
-.dev.vars
+.env.local
+.env.production
+.env.development
 
 # PM2
 .pm2/
@@ -21,7 +23,7 @@ pids/
 logs/
 *.log
 
-# Wrangler local development
+# Wrangler
 .wrangler/
 
 # Backup files
@@ -30,8 +32,18 @@ logs/
 *.tar.gz
 *.zip
 
-# macOS
-.DS_Store
+# Import logs
+import_log.txt
+import_range_log.txt
 
-# Windows
+# CSV test files
+*.csv
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
