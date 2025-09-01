@@ -1123,14 +1123,43 @@ function handleCSVFile(input) {
     
     showLoading();
     
-    // 直接读取文件并发送给后端API，让后端处理所有转换逻辑
+    // 首先尝试检测文件编码并正确读取
     const reader = new FileReader();
     reader.onload = function(e) {
         try {
-            const csvContent = e.target.result;
+            let csvContent = e.target.result;
             console.log('📋 读取CSV文件内容，长度:', csvContent.length);
+            console.log('📋 文件内容前100字符:', csvContent.substring(0, 100));
             
-            // 直接调用后端的import-csv API（已包含完整的GBK转换和字段映射）
+            // 检测是否包含GBK乱码字符，如果有则标记需要处理
+            const hasGBKIssues = csvContent.includes('��') || 
+                                csvContent.includes('') || 
+                                /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/.test(csvContent);
+            
+            if (hasGBKIssues) {
+                console.log('🔍 检测到可能的GBK编码问题，尝试重新读取...');
+                // 重新使用ArrayBuffer方式读取，然后让后端处理
+                const arrayReader = new FileReader();
+                arrayReader.onload = function(arrayEvent) {
+                    const arrayBuffer = arrayEvent.target.result;
+                    const uint8Array = new Uint8Array(arrayBuffer);
+                    
+                    // 转换为原始字符串（保留原始字节）
+                    let rawContent = '';
+                    for (let i = 0; i < uint8Array.length; i++) {
+                        rawContent += String.fromCharCode(uint8Array[i]);
+                    }
+                    
+                    console.log('🔧 ArrayBuffer读取完成，长度:', rawContent.length);
+                    console.log('🔧 原始内容前100字符:', rawContent.substring(0, 100));
+                    
+                    importCSVContent(rawContent);
+                };
+                arrayReader.readAsArrayBuffer(file);
+                return;
+            }
+            
+            // 直接调用后端的import-csv API
             importCSVContent(csvContent);
             
         } catch (error) {
@@ -1140,7 +1169,8 @@ function handleCSVFile(input) {
         }
     };
     
-    reader.readAsText(file);
+    // 首先尝试用UTF-8读取
+    reader.readAsText(file, 'UTF-8');
 }
 
 // 调用后端CSV导入API（使用独立页面相同的API端点）

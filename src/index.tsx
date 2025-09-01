@@ -1046,6 +1046,8 @@ app.post('/api/products/import-csv', async (c) => {
     } catch (jsonError) {
       // 如果JSON解析失败，可能是因为包含控制字符，尝试清理后再解析
       console.log('JSON解析失败，尝试清理控制字符:', jsonError.message);
+      console.log('原始请求体长度:', rawBody.length);
+      console.log('原始请求体前100字符:', rawBody.substring(0, 100));
       
       // 移除或替换可能导致JSON解析失败的控制字符
       const cleanedBody = rawBody
@@ -1054,12 +1056,29 @@ app.post('/api/products/import-csv', async (c) => {
         .replace(/\r/g, '\\n')   // 处理回车
         .replace(/\n/g, '\\n');  // 处理换行
       
+      console.log('清理后请求体长度:', cleanedBody.length);
+      console.log('清理后请求体前100字符:', cleanedBody.substring(0, 100));
+      
       try {
         const parsedBody = JSON.parse(cleanedBody);
         csvData = parsedBody.csvData;
+        console.log('清理后JSON解析成功，CSV数据长度:', csvData ? csvData.length : 'undefined');
       } catch (secondError) {
         console.error('二次JSON解析也失败:', secondError);
-        return c.json({ success: false, error: 'CSV数据格式错误: JSON解析失败' }, 400);
+        console.error('二次解析错误详情:', {
+          name: secondError.name,
+          message: secondError.message
+        });
+        return c.json({ 
+          success: false, 
+          error: 'CSV数据格式错误: JSON解析失败',
+          debug: {
+            firstError: jsonError.message,
+            secondError: secondError.message,
+            bodyLength: rawBody.length,
+            cleanedBodyLength: cleanedBody.length
+          }
+        }, 400);
       }
     }
     
@@ -1105,15 +1124,24 @@ app.post('/api/products/import-csv', async (c) => {
     }
 
     // 首先对整个CSV数据进行GBK转换
+    console.log('开始处理CSV数据，原始长度:', csvData.length);
+    console.log('CSV数据前200字符:', csvData.substring(0, 200));
+    
     let processedCsvData = convertGBKToUTF8Text(csvData);
+    console.log('GBK转换后CSV数据长度:', processedCsvData.length);
+    console.log('转换后CSV数据前200字符:', processedCsvData.substring(0, 200));
     
     // 解析CSV数据
     const lines = processedCsvData.trim().split('\n');
+    console.log('CSV解析出行数:', lines.length);
+    
     if (lines.length < 2) {
       return c.json({ success: false, error: 'CSV文件至少需要包含表头和一行数据' }, 400);
     }
     
     const headers = lines[0].split(',').map(h => h.trim());
+    console.log('CSV表头:', headers);
+    
     const products: Product[] = [];
     
     // 定义中文标题到英文字段的映射
@@ -1138,15 +1166,27 @@ app.post('/api/products/import-csv', async (c) => {
     
     // 将原始标题映射到标准字段
     const mappedHeaders = headers.map(header => fieldMapping[header] || header);
+    console.log('原始标题:', headers);
+    console.log('映射后标题:', mappedHeaders);
     
     // 验证必须的列是否存在（检查映射后的字段）
     const requiredFields = ['name', 'company_name', 'price', 'stock'];
     const missingFields = requiredFields.filter(field => !mappedHeaders.includes(field));
     
+    console.log('必需字段:', requiredFields);
+    console.log('缺失字段:', missingFields);
+    
     if (missingFields.length > 0) {
+      console.error('字段映射失败 - 原始标题:', headers, '映射结果:', mappedHeaders, '缺失字段:', missingFields);
       return c.json({ 
         success: false, 
-        error: `CSV文件缺少必须的列: ${missingFields.join(', ')}。支持的标题格式: 商品名称,公司名称,售价,库存 或 name,company_name,price,stock` 
+        error: `CSV文件缺少必须的列: ${missingFields.join(', ')}。支持的标题格式: 商品名称,公司名称,售价,库存 或 name,company_name,price,stock`,
+        debug: {
+          originalHeaders: headers,
+          mappedHeaders: mappedHeaders,
+          missingFields: missingFields,
+          availableMapping: Object.keys(fieldMapping)
+        }
       }, 400);
     }
     
@@ -1269,7 +1309,20 @@ app.post('/api/products/import-csv', async (c) => {
     
   } catch (error) {
     console.error('CSV import error:', error);
-    return c.json({ success: false, error: 'CSV导入失败' }, 500);
+    console.error('Error details:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    });
+    return c.json({ 
+      success: false, 
+      error: 'CSV导入失败',
+      debug: process.env.NODE_ENV === 'development' ? {
+        errorName: error.name,
+        errorMessage: error.message,
+        errorStack: error.stack
+      } : undefined
+    }, 500);
   }
 });
 
