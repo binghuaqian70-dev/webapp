@@ -161,7 +161,7 @@ app.post('/api/convert-encoding', async (c) => {
     
     // 如果检测到乱码，进行简单的字符映射替换
     if (text.includes('��')) {
-      // 常见的GBK到UTF-8乱码字符映射
+      // 常见的GBK到UTF-8乱码字符映射（基于实际文件内容）
       const gbkMappings = new Map([
         ['��Ʒ����', '商品名称'],
         ['��˾����', '公司名称'], 

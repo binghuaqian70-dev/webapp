@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>前端调试 - CSV处理</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-6xl mx-auto bg-white rounded-lg shadow-lg p-8">
+        <h1 class="text-2xl font-bold mb-6">前端调试 - CSV处理完整流程</h1>
+        
+        <input type="file" id="csvFile" accept=".csv" class="mb-4">
+        <button onclick="debugFile()" class="bg-blue-500 text-white px-4 py-2 rounded mr-2">调试文件处理</button>
+        <button onclick="testImport()" class="bg-green-500 text-white px-4 py-2 rounded">测试导入</button>
+        
+        <div id="output" class="mt-6 space-y-4"></div>
+    </div>
+
+    <script>
+        let processedFile = null;
+        let processedCSVData = '';
+        
+        // 完全复制前端的逻辑
+        const fieldMapping = {
+            '商品名称': 'name',
+            '公司名称': 'company_name', 
+            '售价': 'price',
+            '库存': 'stock',
+            '分类': 'category',
+            '描述': 'description',
+            'SKU': 'sku',
+            'name': 'name',
+            'company_name': 'company_name',
+            'price': 'price', 
+            'stock': 'stock',
+            'category': 'category',
+            'description': 'description',
+            'sku': 'sku'
+        };
+        
+        function detectEncoding(text) {
+            const garbledPatterns = [
+                /��/g,
+                /���/g,
+                /Ʒ����/g,
+                /��˾����/g,
+                /�ۼ�/g,
+            ];
+            
+            const hasGarbledText = garbledPatterns.some(pattern => pattern.test(text));
+            const chinesePattern = /[\u4e00-\u9fa5]/g;
+            const hasValidChinese = chinesePattern.test(text);
+            
+            if (hasGarbledText && !hasValidChinese) {
+                return 'gbk';
+            }
+            if (hasGarbledText) {
+                return 'gbk';
+            }
+            return 'utf-8';
+        }
+        
+        async function convertGBKToUTF8(file) {
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                const response = await fetch('/api/convert-encoding', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    const convertedText = await response.text();
+                    const utf8Blob = new Blob([convertedText], { type: 'text/csv;charset=utf-8' });
+                    return new File([utf8Blob], file.name, { type: 'text/csv' });
+                } else {
+                    throw new Error('服务端转换失败');
+                }
+            } catch (error) {
+                return simpleGBKConvert(file);
+            }
+        }
+        
+        async function simpleGBKConvert(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    let text = e.target.result;
+                    
+                    const gbkMappings = {
+                        '��Ʒ����': '商品名称',
+                        '��˾����': '公司名称', 
+                        '�ۼ�': '售价',
+                        '���': '库存',
+                        '�Ŷ����ֿƼ����Ϻ������޹�˾': '信都数字科技（上海）有限公司'
+                    };
+                    
+                    for (const [gbk, utf8] of Object.entries(gbkMappings)) {
+                        text = text.replace(new RegExp(gbk, 'g'), utf8);
+                    }
+                    
+                    const utf8Blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
+                    resolve(new File([utf8Blob], file.name, { type: 'text/csv' }));
+                };
+                reader.readAsText(file);
+            });
+        }
+        
+        function parseCSV(csvContent) {
+            const lines = csvContent.trim().replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+            if (lines.length < 2) return [];
+            
+            const headers = lines[0].split(',').map(h => h.trim());
+            const data = [];
+            
+            for (let i = 1; i < lines.length; i++) {
+                if (!lines[i].trim()) continue;
+                const values = lines[i].split(',');
+                const row = {};
+                
+                headers.forEach((header, index) => {
+                    let value = values[index]?.trim() || '';
+                    if (value.startsWith('"') && value.endsWith('"')) {
+                        value = value.slice(1, -1);
+                    }
+                    
+                    const mappedField = fieldMapping[header] || header;
+                    row[mappedField] = value;
+                });
+                
+                data.push(row);
+            }
+            
+            return data;
+        }
+        
+        async function debugFile() {
+            const output = document.getElementById('output');
+            const fileInput = document.getElementById('csvFile');
+            
+            if (!fileInput.files[0]) {
+                output.innerHTML = '<div class="bg-red-50 p-4 rounded text-red-700">请选择文件</div>';
+                return;
+            }
+            
+            const file = fileInput.files[0];
+            let logs = [];
+            
+            try {
+                logs.push(`<h3 class="font-bold text-lg">📁 文件信息</h3>`);
+                logs.push(`文件名: ${file.name}`);
+                logs.push(`大小: ${file.size} bytes`);
+                logs.push(`类型: ${file.type}`);
+                
+                // 步骤1: 读取原始文件内容
+                logs.push(`<h3 class="font-bold text-lg mt-4">🔍 步骤1: 原始文件读取</h3>`);
+                let csvContent = await file.text();
+                logs.push(`原始内容（前100字符）: <code class="bg-gray-100 p-1 rounded">${csvContent.substring(0, 100).replace(/</g, '&lt;')}</code>`);
+                
+                // 步骤2: 编码检测
+                logs.push(`<h3 class="font-bold text-lg mt-4">🔍 步骤2: 编码检测</h3>`);
+                const encoding = detectEncoding(csvContent);
+                logs.push(`检测到的编码: <span class="font-bold text-blue-600">${encoding}</span>`);
+                
+                // 步骤3: 编码转换
+                if (encoding === 'gbk') {
+                    logs.push(`<h3 class="font-bold text-lg mt-4">🔄 步骤3: 编码转换</h3>`);
+                    logs.push(`正在转换GBK到UTF-8...`);
+                    
+                    try {
+                        processedFile = await convertGBKToUTF8(file);
+                        csvContent = await processedFile.text();
+                        logs.push(`转换后内容（前100字符）: <code class="bg-gray-100 p-1 rounded">${csvContent.substring(0, 100)}</code>`);
+                        logs.push(`<span class="text-green-600">✅ 编码转换成功</span>`);
+                    } catch (error) {
+                        logs.push(`<span class="text-red-600">❌ 编码转换失败: ${error.message}</span>`);
+                    }
+                } else {
+                    logs.push(`<h3 class="font-bold text-lg mt-4">✅ 步骤3: 无需编码转换</h3>`);
+                    processedFile = file;
+                }
+                
+                processedCSVData = csvContent;
+                
+                // 步骤4: CSV解析
+                logs.push(`<h3 class="font-bold text-lg mt-4">📋 步骤4: CSV解析</h3>`);
+                const parsedData = parseCSV(csvContent);
+                logs.push(`解析行数: ${parsedData.length}`);
+                
+                if (parsedData.length > 0) {
+                    const firstRow = parsedData[0];
+                    const fields = Object.keys(firstRow);
+                    logs.push(`第一行字段: <code class="bg-gray-100 p-1 rounded">${fields.join(', ')}</code>`);
+                    
+                    const requiredFields = ['name', 'company_name', 'price', 'stock'];
+                    const missingFields = requiredFields.filter(field => !fields.includes(field));
+                    
+                    if (missingFields.length === 0) {
+                        logs.push(`<span class="text-green-600">✅ 所有必要字段完整</span>`);
+                    } else {
+                        logs.push(`<span class="text-red-600">❌ 缺少必要字段: ${missingFields.join(', ')}</span>`);
+                    }
+                    
+                    logs.push(`第一行数据预览:`);
+                    logs.push(`<pre class="bg-gray-100 p-3 rounded text-sm">${JSON.stringify(firstRow, null, 2)}</pre>`);
+                }
+                
+            } catch (error) {
+                logs.push(`<span class="text-red-600">❌ 处理失败: ${error.message}</span>`);
+            }
+            
+            output.innerHTML = `<div class="bg-blue-50 border border-blue-200 rounded p-4">
+                ${logs.map(log => `<p class="mb-2">${log}</p>`).join('')}
+            </div>`;
+        }
+        
+        async function testImport() {
+            const output = document.getElementById('output');
+            
+            if (!processedCSVData) {
+                output.innerHTML += '<div class="bg-yellow-50 p-4 rounded text-yellow-700 mt-4">请先调试文件处理</div>';
+                return;
+            }
+            
+            try {
+                // 登录
+                const loginResponse = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: 'admin', password: 'admin' })
+                });
+                
+                const loginData = await loginResponse.json();
+                if (!loginData.success) {
+                    throw new Error('登录失败');
+                }
+                
+                // 测试导入（只取前3行）
+                const testData = processedCSVData.split('\n').slice(0, 4).join('\n');
+                
+                const importResponse = await fetch('/api/products/import-csv', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${loginData.data.token}`
+                    },
+                    body: JSON.stringify({ csvData: testData })
+                });
+                
+                const importResult = await importResponse.json();
+                
+                let result = `<h3 class="font-bold text-lg mt-4">🚀 导入测试结果</h3>`;
+                result += `<p>成功: ${importResult.success}</p>`;
+                
+                if (importResult.success && importResult.data) {
+                    result += `<p>总数: ${importResult.data.total}</p>`;
+                    result += `<p>成功: ${importResult.data.successCount}</p>`;
+                    result += `<p>失败: ${importResult.data.errorCount}</p>`;
+                    
+                    if (importResult.data.errors && importResult.data.errors.length > 0) {
+                        result += `<p>错误: ${importResult.data.errors.join(', ')}</p>`;
+                    }
+                } else {
+                    result += `<p>错误: ${importResult.error}</p>`;
+                }
+                
+                output.innerHTML += `<div class="bg-green-50 border border-green-200 rounded p-4 mt-4">${result}</div>`;
+                
+            } catch (error) {
+                output.innerHTML += `<div class="bg-red-50 border border-red-200 rounded p-4 mt-4">
+                    <p class="text-red-700">导入测试失败: ${error.message}</p>
+                </div>`;
+            }
+        }
+    </script>
+</body>
+</html>

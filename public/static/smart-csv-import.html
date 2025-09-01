@@ -296,30 +296,10 @@ HDMI 高清连接器,三星电子,25.50,50
             return 'utf-8';
         }
         
-        // 由于浏览器TextDecoder对GBK支持有限，我们使用服务端转换
+        // 简单的GBK字符替换转换
         async function convertGBKToUTF8(file) {
-            try {
-                // 创建FormData上传文件给后端转换
-                const formData = new FormData();
-                formData.append('file', file);
-                
-                const response = await fetch('/api/convert-encoding', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                if (response.ok) {
-                    const convertedText = await response.text();
-                    // 创建新的UTF-8文件
-                    const utf8Blob = new Blob([convertedText], { type: 'text/csv;charset=utf-8' });
-                    return new File([utf8Blob], file.name, { type: 'text/csv' });
-                } else {
-                    throw new Error('服务端转换失败');
-                }
-            } catch (error) {
-                // 如果服务端转换失败，尝试客户端简单处理
-                return simpleGBKConvert(file);
-            }
+            // 直接使用简单的客户端转换
+            return simpleGBKConvert(file);
         }
         
         // 简单的客户端GBK转换（有限支持）
