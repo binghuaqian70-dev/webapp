@@ -6,8 +6,8 @@
 - **主要功能**: 商品管理、用户管理、智能CSV批量导入、SKU自动生成
 
 ## 🌐 线上地址
-- **生产环境**: https://0c66f80f.webapp-csv-import.pages.dev
-- **智能导入页面**: https://0c66f80f.webapp-csv-import.pages.dev/static/smart-csv-import.html  
+- **生产环境**: https://webapp-csv-import.pages.dev
+- **智能导入页面**: https://webapp-csv-import.pages.dev/static/smart-csv-import.html  
 - **GitHub仓库**: https://github.com/binghuaqian70-dev/webapp
 
 > **最新更新 (2025-09-01)**: 已修复GBK编码CSV文件导入问题，现在完全支持中文标题的GBK编码文件
@@ -169,7 +169,7 @@ USB连接器,苹果公司,15.99,100,APPLE-USB-001,连接器,高质量USB连接�
 - **状态**: ✅ 生产环境运行中
 - **数据库**: Cloudflare D1 (远程)
 - **最后更新**: 2025-09-01 (修复GBK编码问题)
-- **当前版本**: https://0c66f80f.webapp-csv-import.pages.dev
+- **主域名**: https://webapp-csv-import.pages.dev
 
 ## 💡 使用指南
 1. **登录系统**: 使用admin/admin登录管理界面
