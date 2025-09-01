@@ -243,6 +243,25 @@ HDMI 高清连接器,三星电子,25.50,50
             }
         }
 
+        // 中文标题到英文字段的映射
+        const fieldMapping = {
+            '商品名称': 'name',
+            '公司名称': 'company_name', 
+            '售价': 'price',
+            '库存': 'stock',
+            '分类': 'category',
+            '描述': 'description',
+            'SKU': 'sku',
+            // 英文标题（保持兼容性）
+            'name': 'name',
+            'company_name': 'company_name',
+            'price': 'price', 
+            'stock': 'stock',
+            'category': 'category',
+            'description': 'description',
+            'sku': 'sku'
+        };
+        
         function parseCSV(csvContent) {
             // 处理不同的换行符格式 (\r\n, \n, \r)
             const lines = csvContent.trim().replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
@@ -262,7 +281,10 @@ HDMI 高清连接器,三星电子,25.50,50
                     if (value.startsWith('"') && value.endsWith('"')) {
                         value = value.slice(1, -1);
                     }
-                    row[header] = value;
+                    
+                    // 使用映射将中文字段转换为英文字段
+                    const mappedField = fieldMapping[header] || header;
+                    row[mappedField] = value;
                 });
                 
                 data.push(row);
@@ -306,21 +328,25 @@ HDMI 高清连接器,三星电子,25.50,50
             log('🔍 正在生成处理预览...');
             
             const csvContent = await selectedFile.text();
-            const lines = csvContent.trim().split('\\n');
-            const headers = lines[0].split(',').map(h => h.trim());
+            const lines = csvContent.trim().replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+            const originalHeaders = lines[0].split(',').map(h => h.trim());
+            
+            // 映射原始标题到英文字段
+            const mappedHeaders = originalHeaders.map(header => fieldMapping[header] || header);
             
             // 检查字段完整性
             const requiredFields = ['name', 'company_name', 'price', 'stock'];
-            const missingFields = requiredFields.filter(field => !headers.includes(field));
+            const missingFields = requiredFields.filter(field => !mappedHeaders.includes(field));
             const extraFields = ['sku', 'category', 'description'];
-            const willAddFields = extraFields.filter(field => !headers.includes(field));
+            const willAddFields = extraFields.filter(field => !mappedHeaders.includes(field));
             
             let previewHtml = '<div class="space-y-4">';
             
             // 字段分析
             previewHtml += '<div class="bg-white p-4 rounded border">';
             previewHtml += '<h4 class="font-semibold text-gray-800 mb-2">📊 字段分析</h4>';
-            previewHtml += `<p class="text-sm text-gray-600 mb-2">当前字段 (${headers.length}个): ${headers.join(', ')}</p>`;
+            previewHtml += `<p class="text-sm text-gray-600 mb-2">原始字段 (${originalHeaders.length}个): ${originalHeaders.join(', ')}</p>`;
+            previewHtml += `<p class="text-sm text-blue-600 mb-2">映射字段 (${mappedHeaders.length}个): ${mappedHeaders.join(', ')}</p>`;
             
             if (missingFields.length > 0) {
                 previewHtml += `<p class="text-sm text-red-600 mb-2">❌ 缺失必须字段: ${missingFields.join(', ')}</p>`;
@@ -333,9 +359,12 @@ HDMI 高清连接器,三星电子,25.50,50
             }
             previewHtml += '</div>';
             
+            // 重新解析数据以确保应用最新的字段映射
+            const currentParsedData = parseCSV(csvContent);
+            
             // 示例处理结果
-            if (parsedData.length > 0 && missingFields.length === 0) {
-                const sampleRow = parsedData[0];
+            if (currentParsedData.length > 0 && missingFields.length === 0) {
+                const sampleRow = currentParsedData[0];
                 previewHtml += '<div class="bg-white p-4 rounded border">';
                 previewHtml += '<h4 class="font-semibold text-gray-800 mb-2">🎯 处理示例（第1行数据）</h4>';
                 previewHtml += '<div class="grid grid-cols-2 gap-4 text-sm">';
