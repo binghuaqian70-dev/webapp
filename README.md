@@ -6,14 +6,18 @@
 - **主要功能**: 商品管理、用户管理、智能CSV批量导入、SKU自动生成
 
 ## 🌐 线上地址
-- **生产环境**: https://5fefc5e6.webapp-csv-import.pages.dev
-- **智能导入页面**: https://5fefc5e6.webapp-csv-import.pages.dev/static/smart-csv-import.html
+- **生产环境**: https://0c66f80f.webapp-csv-import.pages.dev
+- **智能导入页面**: https://0c66f80f.webapp-csv-import.pages.dev/static/smart-csv-import.html  
 - **GitHub仓库**: https://github.com/binghuaqian70-dev/webapp
+
+> **最新更新 (2025-09-01)**: 已修复GBK编码CSV文件导入问题，现在完全支持中文标题的GBK编码文件
 
 ## 🚀 核心功能
 
 ### 1. 智能CSV导入
-- ✅ **最简4列格式支持**: `name,company_name,price,stock`
+- ✅ **最简4列格式支持**: `商品名称,公司名称,售价,库存` 或 `name,company_name,price,stock`
+- ✅ **GBK编码支持**: 完美支持GBK/GB18030编码的中文CSV文件
+- ✅ **智能编码检测**: 自动检测并处理文件编码问题
 - ✅ **智能字段补全**: 自动生成SKU、分类、描述
 - ✅ **唯一SKU生成**: 格式`CONN-{NAME}-{TIMESTAMP}-{RANDOM}`
 - ✅ **冲突智能处理**: 自动解决SKU重复问题
@@ -138,10 +142,22 @@ USB连接器,苹果公司,15.99,100,APPLE-USB-001,连接器,高质量USB连接�
 5. 查看详细的成功/错误统计
 
 #### 文件要求
-- **编码**: 支持UTF-8和GBK/GB18030编码
+- **编码**: 完美支持UTF-8和GBK/GB18030编码
 - **格式**: CSV格式，逗号分隔
 - **大小**: 支持大文件（已测试312行数据）
 - **标题**: 支持中文或英文字段标题
+- **兼容性**: 自动处理编码问题，用户无需手动转码
+
+### 🔧 编码问题解决
+**问题**: GBK编码的CSV文件（如"51连接器-9.1.csv"）在前端读取时出现乱码，导致字段映射失败。
+
+**解决方案**:
+1. **前端智能检测**: 检测文件是否包含GBK乱码字符
+2. **ArrayBuffer读取**: 对于GBK文件使用ArrayBuffer方式读取原始字节
+3. **后端转换处理**: 在服务器端进行完整的GBK到UTF-8字符映射
+4. **字段智能映射**: 将`商品名称,公司名称,售价,库存`等中文字段自动映射为英文字段名
+
+**测试结果**: ✅ 已成功处理包含中文标题的GBK编码CSV文件，312条数据完美导入
 
 ## 🔐 默认账户
 - **用户名**: admin
@@ -152,7 +168,8 @@ USB连接器,苹果公司,15.99,100,APPLE-USB-001,连接器,高质量USB连接�
 - **平台**: Cloudflare Pages
 - **状态**: ✅ 生产环境运行中
 - **数据库**: Cloudflare D1 (远程)
-- **最后更新**: 2025-09-01
+- **最后更新**: 2025-09-01 (修复GBK编码问题)
+- **当前版本**: https://0c66f80f.webapp-csv-import.pages.dev
 
 ## 💡 使用指南
 1. **登录系统**: 使用admin/admin登录管理界面
