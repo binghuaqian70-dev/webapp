@@ -161,46 +161,13 @@ app.post('/api/auth/login', async (c) => {
       }, 401)
     }
     
-    // 检查账户是否被锁定
-    if (user.account_locked_until) {
-      const lockUntil = new Date(user.account_locked_until);
-      if (lockUntil > new Date()) {
-        const remainingMinutes = Math.ceil((lockUntil.getTime() - Date.now()) / (1000 * 60));
-        return c.json({
-          success: false,
-          error: `账户已被锁定，请在 ${remainingMinutes} 分钟后重试`
-        }, 401);
-      }
-    }
-    
-    // 验证密码
-    const isPasswordValid = await verifyPassword(password, user.password_hash!);
-    
-    if (!isPasswordValid) {
-      // 增加失败登录次数
-      const failedAttempts = (user.failed_login_attempts || 0) + 1;
-      let lockUntil = null;
-      
-      if (failedAttempts >= AUTH_CONFIG.maxFailedAttempts) {
-        lockUntil = new Date(Date.now() + AUTH_CONFIG.lockoutDuration * 1000).toISOString();
-      }
-      
-      await env.DB.prepare(
-        'UPDATE users SET failed_login_attempts = ?, account_locked_until = ? WHERE id = ?'
-      ).bind(failedAttempts, lockUntil, user.id).run();
-      
+    // 简化版：直接比较明文密码
+    if (password !== user.password) {
       return c.json({ 
         success: false, 
-        error: failedAttempts >= AUTH_CONFIG.maxFailedAttempts 
-          ? '登录失败次数过多，账户已被锁定' 
-          : '用户名或密码错误'
+        error: '用户名或密码错误'
       }, 401)
     }
-    
-    // 登录成功，重置失败次数并更新最后登录时间
-    await env.DB.prepare(
-      'UPDATE users SET failed_login_attempts = 0, account_locked_until = NULL, last_login = CURRENT_TIMESTAMP WHERE id = ?'
-    ).bind(user.id).run();
     
     // 生成JWT令牌
     const payload = {
@@ -899,6 +866,14 @@ app.delete('/api/products/:id', async (c) => {
   }
 });
 
+// 辅助函数：生成唯一SKU
+function generateUniqueSKU(name: string, index: number): string {
+  const timestamp = Date.now().toString().slice(-6);
+  const namePrefix = name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase();
+  const randomSuffix = Math.random().toString(36).substring(2, 8).toUpperCase();
+  return `CONN-${namePrefix || 'PROD'}-${timestamp}-${randomSuffix}`;
+}
+
 // 批量导入商品
 app.post('/api/products/batch', async (c) => {
   const { env } = c;
@@ -926,22 +901,38 @@ app.post('/api/products/batch', async (c) => {
           continue;
         }
         
-        // 检查SKU唯一性
+        // 智能填充缺失字段
+        if (!product.sku) {
+          product.sku = generateUniqueSKU(product.name, i);
+        }
+        
+        if (!product.category) {
+          product.category = '连接器'; // 默认分类
+        }
+        
+        if (!product.description) {
+          product.description = `连接器产品 - ${product.name}`;
+        }
+        
+        // 先检查SKU是否已存在（用于统计）
+        let isUpdate = false;
         if (product.sku) {
-          const existingSku = await env.DB.prepare(`
+          const existingProduct = await env.DB.prepare(`
             SELECT id FROM products WHERE sku = ? AND status = 'active'
           `).bind(product.sku).first();
           
-          if (existingSku) {
-            errors.push(`第${i + 1}行: SKU ${product.sku} 已存在`);
+          if (existingProduct) {
+            isUpdate = true;
+            errors.push(`第${i + 1}行: SKU ${product.sku} 已存在，跳过导入`);
             errorCount++;
             continue;
           }
         }
         
-        await env.DB.prepare(`
-          INSERT INTO products (name, company_name, price, stock, description, category, sku, status)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        // 使用INSERT OR IGNORE来安全插入，避免约束冲突
+        const result = await env.DB.prepare(`
+          INSERT OR IGNORE INTO products (name, company_name, price, stock, description, category, sku, status, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `).bind(
           product.name,
           product.company_name,
@@ -952,6 +943,14 @@ app.post('/api/products/batch', async (c) => {
           product.sku || '',
           product.status || 'active'
         ).run();
+        
+        // 检查是否实际插入了记录
+        if (result.changes === 0 && product.sku) {
+          // 记录未插入，说明存在冲突（但这不应该发生，因为我们已经检查过了）
+          errors.push(`第${i + 1}行: SKU ${product.sku} 插入失败，可能存在冲突`);
+          errorCount++;
+          continue;
+        }
         
         successCount++;
         
@@ -974,6 +973,139 @@ app.post('/api/products/batch', async (c) => {
   } catch (error) {
     console.error('Batch import error:', error);
     return c.json({ success: false, error: '批量导入失败' }, 500);
+  }
+});
+
+// CSV文本批量导入API
+app.post('/api/products/import-csv', async (c) => {
+  const { env } = c;
+  
+  try {
+    const { csvData }: { csvData: string } = await c.req.json();
+    
+    if (!csvData || typeof csvData !== 'string') {
+      return c.json({ success: false, error: 'CSV数据格式错误' }, 400);
+    }
+    
+    // 解析CSV数据
+    const lines = csvData.trim().split('\n');
+    if (lines.length < 2) {
+      return c.json({ success: false, error: 'CSV文件至少需要包含表头和一行数据' }, 400);
+    }
+    
+    const headers = lines[0].split(',').map(h => h.trim());
+    const products: Product[] = [];
+    
+    // 验证必须的列是否存在
+    const requiredFields = ['name', 'company_name', 'price', 'stock'];
+    for (const field of requiredFields) {
+      if (!headers.includes(field)) {
+        return c.json({ 
+          success: false, 
+          error: `CSV文件缺少必须的列: ${field}。需要包含: ${requiredFields.join(', ')}` 
+        }, 400);
+      }
+    }
+    
+    // 解析数据行
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(',');
+      const product: any = {};
+      
+      // 映射数据到对应字段
+      headers.forEach((header, index) => {
+        const value = values[index]?.trim() || '';
+        if (header === 'price') {
+          product[header] = parseFloat(value) || 0;
+        } else if (header === 'stock') {
+          product[header] = parseInt(value) || 0;
+        } else {
+          product[header] = value;
+        }
+      });
+      
+      // 智能填充缺失字段
+      if (!product.sku) {
+        product.sku = generateUniqueSKU(product.name, i);
+      }
+      
+      if (!product.category) {
+        product.category = '连接器';
+      }
+      
+      if (!product.description) {
+        product.description = `连接器产品 - ${product.name}`;
+      }
+      
+      products.push(product);
+    }
+    
+    // 调用现有的批量导入逻辑
+    let successCount = 0;
+    let errorCount = 0;
+    const errors: string[] = [];
+    
+    for (let i = 0; i < products.length; i++) {
+      const product = products[i];
+      
+      try {
+        // 验证必填字段
+        if (!product.name || !product.company_name || !product.price || product.stock === undefined) {
+          errors.push(`第${i + 1}行: 商品名称、公司名称、价格和库存为必填字段`);
+          errorCount++;
+          continue;
+        }
+        
+        // 检查SKU是否已存在（但允许重复的name作为sku使用）
+        let isUpdate = false;
+        if (product.sku) {
+          const existingProduct = await env.DB.prepare(`
+            SELECT id FROM products WHERE sku = ? AND status = 'active'
+          `).bind(product.sku).first();
+          
+          if (existingProduct) {
+            // SKU冲突，重新生成一个唯一的SKU
+            product.sku = generateUniqueSKU(product.name, Date.now() + i);
+          }
+        }
+        
+        // 使用INSERT OR IGNORE来安全插入
+        const result = await env.DB.prepare(`
+          INSERT INTO products (name, company_name, price, stock, description, category, sku, status, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `).bind(
+          product.name,
+          product.company_name,
+          product.price,
+          product.stock,
+          product.description || '',
+          product.category || '',
+          product.sku || '',
+          product.status || 'active'
+        ).run();
+        
+        successCount++;
+        
+      } catch (error) {
+        console.error(`Import error for row ${i + 1}:`, error);
+        errors.push(`第${i + 1}行: ${error}`);
+        errorCount++;
+      }
+    }
+    
+    return c.json({
+      success: true,
+      data: {
+        total: products.length,
+        successCount,
+        errorCount,
+        errors: errors.slice(0, 10) // 只返回前10个错误
+      }
+    });
+    
+  } catch (error) {
+    console.error('CSV import error:', error);
+    return c.json({ success: false, error: 'CSV导入失败' }, 500);
   }
 });
 

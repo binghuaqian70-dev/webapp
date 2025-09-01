@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能CSV批量导入</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .drag-area {
+            border: 2px dashed #ccc;
+            transition: all 0.3s ease;
+        }
+        .drag-area.dragover {
+            border-color: #007bff;
+            background-color: #f8f9fa;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto max-w-6xl p-6">
+        <div class="bg-white rounded-lg shadow-lg p-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-6">
+                <i class="fas fa-magic mr-3 text-purple-600"></i>智能CSV批量导入
+            </h1>
+            
+            <!-- 功能说明 -->
+            <div class="mb-8 p-4 bg-blue-50 border-l-4 border-blue-400 rounded">
+                <h3 class="text-lg font-semibold text-blue-800 mb-2">
+                    <i class="fas fa-info-circle mr-2"></i>智能导入特性
+                </h3>
+                <div class="text-blue-700 space-y-2">
+                    <p>✨ <strong>自动补全</strong>：系统会自动为您的数据生成缺失的字段</p>
+                    <p>🔧 <strong>智能SKU</strong>：根据产品名称自动生成唯一的SKU编码</p>
+                    <p>📋 <strong>默认分类</strong>：自动设置为"连接器"分类</p>
+                    <p>🛡️ <strong>冲突处理</strong>：自动处理重复数据，确保导入成功</p>
+                </div>
+            </div>
+
+            <!-- CSV格式支持 -->
+            <div class="mb-8 p-4 bg-green-50 border-l-4 border-green-400 rounded">
+                <h3 class="text-lg font-semibold text-green-800 mb-2">
+                    <i class="fas fa-check-circle mr-2"></i>支持的CSV格式
+                </h3>
+                <div class="text-green-700">
+                    <p class="mb-2"><strong>最简格式（4列）</strong>：</p>
+                    <code class="bg-green-100 px-2 py-1 rounded block mb-3">name,company_name,price,stock</code>
+                    
+                    <p class="mb-2"><strong>完整格式（7列）</strong>：</p>
+                    <code class="bg-green-100 px-2 py-1 rounded block">name,company_name,price,stock,sku,category,description</code>
+                    
+                    <p class="mt-3 text-sm">💡 系统会自动检测您的CSV格式并智能补全缺失字段</p>
+                </div>
+            </div>
+
+            <!-- 拖拽上传区域 -->
+            <div id="dragArea" class="drag-area border-2 border-dashed border-gray-300 rounded-lg p-8 text-center bg-gray-50 hover:bg-gray-100 cursor-pointer mb-6">
+                <div class="space-y-4">
+                    <i class="fas fa-cloud-upload-alt text-6xl text-gray-400"></i>
+                    <div>
+                        <p class="text-2xl font-medium text-gray-600">拖拽CSV文件到此处</p>
+                        <p class="text-gray-500 mt-2">或 <span class="text-blue-600 underline font-medium">点击选择文件</span></p>
+                    </div>
+                    <input type="file" id="csvFile" class="hidden" accept=".csv" />
+                </div>
+            </div>
+
+            <!-- 文件信息和预览 -->
+            <div id="fileSection" class="hidden space-y-6 mb-8">
+                <!-- 文件信息 -->
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h4 class="font-semibold text-blue-800 mb-2">
+                        <i class="fas fa-file-csv mr-2"></i>文件信息
+                    </h4>
+                    <div id="fileInfo" class="text-sm text-blue-700"></div>
+                </div>
+
+                <!-- 数据预览 -->
+                <div>
+                    <h4 class="font-semibold text-gray-800 mb-3">
+                        <i class="fas fa-eye mr-2"></i>数据预览（前5行）
+                    </h4>
+                    <div class="overflow-x-auto bg-white border rounded-lg">
+                        <table class="min-w-full">
+                            <thead class="bg-gray-50">
+                                <tr id="previewHeader"></tr>
+                            </thead>
+                            <tbody id="previewBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 导入控制 -->
+                <div class="flex items-center justify-between bg-gray-50 p-4 rounded-lg">
+                    <div class="text-gray-700">
+                        <span id="totalRows">0</span> 行数据准备导入
+                    </div>
+                    <div class="space-x-4">
+                        <button id="previewBtn" onclick="previewImport()" 
+                                class="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-6 rounded transition duration-200">
+                            <i class="fas fa-search mr-2"></i>预览处理结果
+                        </button>
+                        <button id="importBtn" onclick="startImport()" 
+                                class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded transition duration-200">
+                            <i class="fas fa-play mr-2"></i>开始导入
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 处理结果预览 -->
+            <div id="previewSection" class="hidden mb-8">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                    <i class="fas fa-cogs mr-2"></i>智能处理预览
+                </h3>
+                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <div id="previewResult"></div>
+                </div>
+            </div>
+
+            <!-- 导入结果 -->
+            <div id="importResult" class="hidden"></div>
+
+            <!-- 操作历史 -->
+            <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                    <i class="fas fa-history mr-2"></i>操作日志
+                </h3>
+                <div id="logContainer" class="bg-white p-3 rounded border max-h-60 overflow-y-auto">
+                    <p class="text-gray-600 text-sm">等待操作...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+    <script>
+        const API_BASE = window.location.origin;
+        let authToken = '';
+        let selectedFile = null;
+        let parsedData = [];
+
+        // 页面加载时自动登录
+        document.addEventListener('DOMContentLoaded', async () => {
+            await login();
+        });
+
+        // 拖拽事件
+        const dragArea = document.getElementById('dragArea');
+        const fileInput = document.getElementById('csvFile');
+
+        dragArea.addEventListener('click', () => fileInput.click());
+        dragArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dragArea.classList.add('dragover');
+        });
+        dragArea.addEventListener('dragleave', () => {
+            dragArea.classList.remove('dragover');
+        });
+        dragArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dragArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        async function login() {
+            try {
+                const response = await axios.post(`${API_BASE}/api/auth/login`, {
+                    username: 'admin',
+                    password: 'admin'
+                });
+                
+                if (response.data.success) {
+                    authToken = response.data.data.token;
+                    log('✅ 自动登录成功');
+                    return true;
+                } else {
+                    log('❌ 登录失败: ' + response.data.error);
+                    return false;
+                }
+            } catch (error) {
+                log('❌ 登录异常: ' + error.message);
+                return false;
+            }
+        }
+
+        async function handleFile(file) {
+            if (!file.name.endsWith('.csv')) {
+                log('❌ 请选择CSV文件');
+                return;
+            }
+            
+            selectedFile = file;
+            
+            // 显示文件信息
+            document.getElementById('fileInfo').innerHTML = `
+                <div class="grid grid-cols-3 gap-4">
+                    <div><strong>文件名：</strong> ${file.name}</div>
+                    <div><strong>大小：</strong> ${(file.size / 1024).toFixed(2)} KB</div>
+                    <div><strong>修改时间：</strong> ${new Date(file.lastModified).toLocaleString()}</div>
+                </div>
+            `;
+            
+            // 解析CSV
+            try {
+                const csvContent = await file.text();
+                parsedData = parseCSV(csvContent);
+                
+                if (parsedData.length === 0) {
+                    log('❌ CSV文件为空或格式错误');
+                    return;
+                }
+                
+                // 显示预览
+                displayPreview(parsedData);
+                document.getElementById('totalRows').textContent = parsedData.length;
+                document.getElementById('fileSection').classList.remove('hidden');
+                
+                log(`📄 成功解析CSV文件，共 ${parsedData.length} 行数据`);
+                
+            } catch (error) {
+                log('❌ CSV解析失败: ' + error.message);
+            }
+        }
+
+        function parseCSV(csvContent) {
+            const lines = csvContent.trim().split('\\n');
+            if (lines.length < 2) return [];
+            
+            const headers = lines[0].split(',').map(h => h.trim());
+            const data = [];
+            
+            for (let i = 1; i < lines.length; i++) {
+                const values = lines[i].split(',');
+                const row = {};
+                
+                headers.forEach((header, index) => {
+                    row[header] = values[index]?.trim() || '';
+                });
+                
+                data.push(row);
+            }
+            
+            return data;
+        }
+
+        function displayPreview(data) {
+            if (data.length === 0) return;
+            
+            const headers = Object.keys(data[0]);
+            const headerRow = document.getElementById('previewHeader');
+            const body = document.getElementById('previewBody');
+            
+            // 显示表头
+            headerRow.innerHTML = headers.map(header => 
+                `<th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">${header}</th>`
+            ).join('');
+            
+            // 显示前5行数据
+            body.innerHTML = '';
+            const previewData = data.slice(0, 5);
+            
+            previewData.forEach((row, index) => {
+                const tr = document.createElement('tr');
+                tr.className = index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+                tr.innerHTML = headers.map(header => 
+                    `<td class="px-4 py-2 text-sm text-gray-900 border-b">${row[header] || '-'}</td>`
+                ).join('');
+                body.appendChild(tr);
+            });
+        }
+
+        async function previewImport() {
+            if (!selectedFile || !authToken) {
+                log('❌ 请先选择文件并确保已登录');
+                return;
+            }
+            
+            log('🔍 正在生成处理预览...');
+            
+            const csvContent = await selectedFile.text();
+            const lines = csvContent.trim().split('\\n');
+            const headers = lines[0].split(',').map(h => h.trim());
+            
+            // 检查字段完整性
+            const requiredFields = ['name', 'company_name', 'price', 'stock'];
+            const missingFields = requiredFields.filter(field => !headers.includes(field));
+            const extraFields = ['sku', 'category', 'description'];
+            const willAddFields = extraFields.filter(field => !headers.includes(field));
+            
+            let previewHtml = '<div class="space-y-4">';
+            
+            // 字段分析
+            previewHtml += '<div class="bg-white p-4 rounded border">';
+            previewHtml += '<h4 class="font-semibold text-gray-800 mb-2">📊 字段分析</h4>';
+            previewHtml += `<p class="text-sm text-gray-600 mb-2">当前字段 (${headers.length}个): ${headers.join(', ')}</p>`;
+            
+            if (missingFields.length > 0) {
+                previewHtml += `<p class="text-sm text-red-600 mb-2">❌ 缺失必须字段: ${missingFields.join(', ')}</p>`;
+            } else {
+                previewHtml += `<p class="text-sm text-green-600 mb-2">✅ 所有必须字段完整</p>`;
+            }
+            
+            if (willAddFields.length > 0) {
+                previewHtml += `<p class="text-sm text-blue-600">🔧 将自动添加: ${willAddFields.join(', ')}</p>`;
+            }
+            previewHtml += '</div>';
+            
+            // 示例处理结果
+            if (parsedData.length > 0 && missingFields.length === 0) {
+                const sampleRow = parsedData[0];
+                previewHtml += '<div class="bg-white p-4 rounded border">';
+                previewHtml += '<h4 class="font-semibold text-gray-800 mb-2">🎯 处理示例（第1行数据）</h4>';
+                previewHtml += '<div class="grid grid-cols-2 gap-4 text-sm">';
+                
+                previewHtml += '<div>';
+                previewHtml += '<p class="font-medium text-gray-700 mb-2">原始数据:</p>';
+                Object.entries(sampleRow).forEach(([key, value]) => {
+                    previewHtml += `<p class="text-gray-600">${key}: ${value}</p>`;
+                });
+                previewHtml += '</div>';
+                
+                previewHtml += '<div>';
+                previewHtml += '<p class="font-medium text-gray-700 mb-2">处理后:</p>';
+                previewHtml += `<p class="text-gray-600">name: ${sampleRow.name}</p>`;
+                previewHtml += `<p class="text-gray-600">company_name: ${sampleRow.company_name}</p>`;
+                previewHtml += `<p class="text-gray-600">price: ${sampleRow.price}</p>`;
+                previewHtml += `<p class="text-gray-600">stock: ${sampleRow.stock}</p>`;
+                if (!headers.includes('sku')) {
+                    const fakeSku = generateSampleSku(sampleRow.name);
+                    previewHtml += `<p class="text-blue-600">sku: ${fakeSku} <span class="text-xs">(自动生成)</span></p>`;
+                }
+                if (!headers.includes('category')) {
+                    previewHtml += `<p class="text-blue-600">category: 连接器 <span class="text-xs">(默认值)</span></p>`;
+                }
+                if (!headers.includes('description')) {
+                    previewHtml += `<p class="text-blue-600">description: 连接器产品 - ${sampleRow.name} <span class="text-xs">(自动生成)</span></p>`;
+                }
+                previewHtml += '</div>';
+                previewHtml += '</div>';
+                previewHtml += '</div>';
+            }
+            
+            previewHtml += '</div>';
+            
+            document.getElementById('previewResult').innerHTML = previewHtml;
+            document.getElementById('previewSection').classList.remove('hidden');
+            
+            log('✅ 处理预览生成完成');
+        }
+
+        function generateSampleSku(name) {
+            const namePrefix = name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase();
+            return `CONN-${namePrefix || 'PROD'}-${Date.now().toString().slice(-6)}-SAMPLE`;
+        }
+
+        async function startImport() {
+            if (!selectedFile || !authToken) {
+                log('❌ 请先选择文件并确保已登录');
+                return;
+            }
+            
+            const importBtn = document.getElementById('importBtn');
+            importBtn.disabled = true;
+            importBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>导入中...';
+            
+            log('🚀 开始批量导入...');
+            
+            try {
+                const csvContent = await selectedFile.text();
+                
+                const response = await axios.post(`${API_BASE}/api/products/import-csv`, {
+                    csvData: csvContent
+                }, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 60000
+                });
+                
+                if (response.data.success) {
+                    const result = response.data.data;
+                    showImportResult(true, result);
+                    log(`✅ 导入完成: 成功 ${result.successCount} 条，失败 ${result.errorCount} 条`);
+                } else {
+                    showImportResult(false, { error: response.data.error });
+                    log('❌ 导入失败: ' + response.data.error);
+                }
+                
+            } catch (error) {
+                showImportResult(false, { error: error.message });
+                log('❌ 导入异常: ' + error.message);
+            } finally {
+                importBtn.disabled = false;
+                importBtn.innerHTML = '<i class="fas fa-play mr-2"></i>开始导入';
+            }
+        }
+
+        function showImportResult(success, data) {
+            const resultDiv = document.getElementById('importResult');
+            
+            if (success) {
+                resultDiv.className = 'bg-green-50 border border-green-200 rounded-lg p-6 mb-8';
+                resultDiv.innerHTML = `
+                    <h3 class="text-lg font-semibold text-green-800 mb-4">
+                        <i class="fas fa-check-circle mr-2"></i>导入成功！
+                    </h3>
+                    <div class="grid grid-cols-3 gap-4 mb-4">
+                        <div class="text-center bg-white p-3 rounded">
+                            <div class="text-2xl font-bold text-green-600">${data.total}</div>
+                            <div class="text-green-800 text-sm">总数据</div>
+                        </div>
+                        <div class="text-center bg-white p-3 rounded">
+                            <div class="text-2xl font-bold text-green-600">${data.successCount}</div>
+                            <div class="text-green-800 text-sm">成功</div>
+                        </div>
+                        <div class="text-center bg-white p-3 rounded">
+                            <div class="text-2xl font-bold text-red-600">${data.errorCount}</div>
+                            <div class="text-red-800 text-sm">失败</div>
+                        </div>
+                    </div>
+                    ${data.errors && data.errors.length > 0 ? `
+                        <div class="mt-4">
+                            <h4 class="font-medium text-green-800 mb-2">错误详情:</h4>
+                            <div class="bg-white border rounded p-3 max-h-32 overflow-y-auto">
+                                ${data.errors.map(error => `<p class="text-sm text-red-600">• ${error}</p>`).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+                `;
+            } else {
+                resultDiv.className = 'bg-red-50 border border-red-200 rounded-lg p-6 mb-8';
+                resultDiv.innerHTML = `
+                    <h3 class="text-lg font-semibold text-red-800 mb-2">
+                        <i class="fas fa-exclamation-circle mr-2"></i>导入失败
+                    </h3>
+                    <p class="text-red-700">${data.error}</p>
+                `;
+            }
+            
+            resultDiv.classList.remove('hidden');
+        }
+
+        function log(message) {
+            const logContainer = document.getElementById('logContainer');
+            const time = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('p');
+            logEntry.className = 'text-sm text-gray-700 mb-1';
+            logEntry.textContent = `[${time}] ${message}`;
+            
+            if (logContainer.firstChild && logContainer.firstChild.textContent !== '等待操作...') {
+                logContainer.insertBefore(logEntry, logContainer.firstChild);
+            } else {
+                logContainer.innerHTML = '';
+                logContainer.appendChild(logEntry);
+            }
+            
+            while (logContainer.children.length > 50) {
+                logContainer.removeChild(logContainer.lastChild);
+            }
+            
+            logContainer.scrollTop = 0;
+        }
+    </script>
+</body>
+</html>

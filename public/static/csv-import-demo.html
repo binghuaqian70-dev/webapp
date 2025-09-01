@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV批量导入演示</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .drag-area {
+            border: 2px dashed #ccc;
+            transition: all 0.3s ease;
+        }
+        .drag-area.dragover {
+            border-color: #007bff;
+            background-color: #f8f9fa;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto max-w-6xl p-6">
+        <div class="bg-white rounded-lg shadow-lg p-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-6">
+                <i class="fas fa-upload mr-3"></i>CSV批量导入演示
+            </h1>
+            
+            <div class="mb-8 p-4 bg-blue-50 border-l-4 border-blue-400 rounded">
+                <h3 class="text-lg font-semibold text-blue-800 mb-2">导入结果</h3>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div class="bg-green-100 p-3 rounded text-center">
+                        <div class="text-2xl font-bold text-green-600">307</div>
+                        <div class="text-green-800">成功导入</div>
+                    </div>
+                    <div class="bg-red-100 p-3 rounded text-center">
+                        <div class="text-2xl font-bold text-red-600">5</div>
+                        <div class="text-red-800">跳过重复</div>
+                    </div>
+                    <div class="bg-blue-100 p-3 rounded text-center">
+                        <div class="text-2xl font-bold text-blue-600">312</div>
+                        <div class="text-blue-800">总数据量</div>
+                    </div>
+                    <div class="bg-purple-100 p-3 rounded text-center">
+                        <div class="text-2xl font-bold text-purple-600">337</div>
+                        <div class="text-purple-800">当前总商品</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-6">
+                <!-- CSV格式要求 -->
+                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-yellow-800 mb-2">
+                        <i class="fas fa-info-circle mr-2"></i>CSV格式要求
+                    </h3>
+                    <div class="text-sm text-yellow-700">
+                        <p class="mb-2">您的CSV文件应包含以下字段：</p>
+                        <code class="bg-yellow-100 px-2 py-1 rounded">name,company_name,price,stock,sku,category,description</code>
+                        <p class="mt-2">✅ 系统已自动为您的连接器数据生成唯一SKU码</p>
+                    </div>
+                </div>
+
+                <!-- 拖拽上传区域 -->
+                <div id="dragArea" class="drag-area border-2 border-dashed border-gray-300 rounded-lg p-8 text-center bg-gray-50 hover:bg-gray-100 cursor-pointer">
+                    <div class="space-y-4">
+                        <i class="fas fa-cloud-upload-alt text-4xl text-gray-400"></i>
+                        <div>
+                            <p class="text-xl font-medium text-gray-600">拖拽CSV文件到此处</p>
+                            <p class="text-sm text-gray-500 mt-2">或 <span class="text-blue-600 underline">点击选择文件</span></p>
+                        </div>
+                        <input type="file" id="csvFile" class="hidden" accept=".csv" />
+                    </div>
+                </div>
+
+                <!-- 文件信息 -->
+                <div id="fileInfo" class="hidden bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h4 class="font-semibold text-blue-800 mb-2">文件信息</h4>
+                    <div id="fileDetails" class="text-sm text-blue-700"></div>
+                </div>
+
+                <!-- 数据预览 -->
+                <div id="preview" class="hidden">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">数据预览（前5行）</h3>
+                    <div class="overflow-x-auto">
+                        <table id="previewTable" class="min-w-full bg-white border border-gray-200 rounded-lg overflow-hidden">
+                            <thead class="bg-gray-50">
+                                <tr id="previewHeader"></tr>
+                            </thead>
+                            <tbody id="previewBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 导入按钮 -->
+                <div class="text-center">
+                    <button id="importBtn" class="hidden bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200">
+                        <i class="fas fa-upload mr-2"></i>开始导入
+                    </button>
+                </div>
+
+                <!-- 导入结果 -->
+                <div id="importResult" class="hidden"></div>
+            </div>
+        </div>
+
+        <!-- 导入的连接器商品展示 -->
+        <div class="bg-white rounded-lg shadow-lg p-8 mt-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6">
+                <i class="fas fa-plug mr-3"></i>已导入的连接器商品
+            </h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="connectorProducts">
+                <!-- 动态加载连接器商品 -->
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+    <script>
+        const dragArea = document.getElementById('dragArea');
+        const fileInput = document.getElementById('csvFile');
+        const fileInfo = document.getElementById('fileInfo');
+        const preview = document.getElementById('preview');
+        const importBtn = document.getElementById('importBtn');
+        const importResult = document.getElementById('importResult');
+        
+        let selectedFile = null;
+
+        // 拖拽事件
+        dragArea.addEventListener('click', () => fileInput.click());
+        dragArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dragArea.classList.add('dragover');
+        });
+        dragArea.addEventListener('dragleave', () => {
+            dragArea.classList.remove('dragover');
+        });
+        dragArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dragArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            if (!file.name.endsWith('.csv')) {
+                alert('请选择CSV文件！');
+                return;
+            }
+            
+            selectedFile = file;
+            showFileInfo(file);
+            previewCSV(file);
+        }
+
+        function showFileInfo(file) {
+            document.getElementById('fileDetails').innerHTML = `
+                <div class="grid grid-cols-2 gap-4">
+                    <div><strong>文件名：</strong> ${file.name}</div>
+                    <div><strong>大小：</strong> ${(file.size / 1024).toFixed(2)} KB</div>
+                    <div><strong>类型：</strong> ${file.type}</div>
+                    <div><strong>修改时间：</strong> ${new Date(file.lastModified).toLocaleString()}</div>
+                </div>
+            `;
+            fileInfo.classList.remove('hidden');
+        }
+
+        async function previewCSV(file) {
+            const text = await file.text();
+            const lines = text.trim().split('\\n');
+            const headers = lines[0].split(',');
+            
+            // 显示表头
+            const headerRow = document.getElementById('previewHeader');
+            headerRow.innerHTML = headers.map(header => 
+                `<th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${header}</th>`
+            ).join('');
+            
+            // 显示前5行数据
+            const tbody = document.getElementById('previewBody');
+            tbody.innerHTML = '';
+            
+            for (let i = 1; i < Math.min(6, lines.length); i++) {
+                const cols = lines[i].split(',');
+                const row = document.createElement('tr');
+                row.className = i % 2 === 0 ? 'bg-gray-50' : 'bg-white';
+                row.innerHTML = cols.map(col => 
+                    `<td class="px-4 py-2 text-sm text-gray-900">${col}</td>`
+                ).join('');
+                tbody.appendChild(row);
+            }
+            
+            preview.classList.remove('hidden');
+            importBtn.classList.remove('hidden');
+        }
+
+        // 导入功能
+        importBtn.addEventListener('click', async () => {
+            if (!selectedFile) {
+                alert('请先选择文件！');
+                return;
+            }
+
+            importBtn.disabled = true;
+            importBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>导入中...';
+
+            try {
+                const csvContent = await selectedFile.text();
+                const products = parseCSV(csvContent);
+
+                const response = await axios.post('/api/products/batch', {
+                    products: products
+                });
+
+                if (response.data.success) {
+                    showImportSuccess(response.data.data);
+                    loadConnectorProducts();
+                } else {
+                    showImportError(response.data.error);
+                }
+            } catch (error) {
+                showImportError(error.message);
+            } finally {
+                importBtn.disabled = false;
+                importBtn.innerHTML = '<i class="fas fa-upload mr-2"></i>开始导入';
+            }
+        });
+
+        function parseCSV(csvContent) {
+            const lines = csvContent.trim().split('\\n');
+            const headers = lines[0].split(',');
+            const products = [];
+
+            for (let i = 1; i < lines.length; i++) {
+                const values = lines[i].split(',');
+                const product = {};
+                
+                headers.forEach((header, index) => {
+                    product[header.trim()] = values[index]?.trim() || '';
+                });
+                
+                // 转换数据类型
+                if (product.price) product.price = parseFloat(product.price);
+                if (product.stock) product.stock = parseInt(product.stock);
+                
+                products.push(product);
+            }
+
+            return products;
+        }
+
+        function showImportSuccess(data) {
+            importResult.className = 'bg-green-50 border border-green-200 rounded-lg p-4';
+            importResult.innerHTML = `
+                <h4 class="font-semibold text-green-800 mb-2">
+                    <i class="fas fa-check-circle mr-2"></i>导入成功！
+                </h4>
+                <div class="text-sm text-green-700">
+                    <p>总计：${data.total} 条，成功：${data.successCount} 条，失败：${data.errorCount} 条</p>
+                    ${data.errors.length > 0 ? `<p class="mt-2">错误信息：</p><ul class="list-disc list-inside">${data.errors.map(err => `<li>${err}</li>`).join('')}</ul>` : ''}
+                </div>
+            `;
+            importResult.classList.remove('hidden');
+        }
+
+        function showImportError(error) {
+            importResult.className = 'bg-red-50 border border-red-200 rounded-lg p-4';
+            importResult.innerHTML = `
+                <h4 class="font-semibold text-red-800 mb-2">
+                    <i class="fas fa-exclamation-circle mr-2"></i>导入失败
+                </h4>
+                <p class="text-sm text-red-700">${error}</p>
+            `;
+            importResult.classList.remove('hidden');
+        }
+
+        // 加载连接器商品展示
+        async function loadConnectorProducts() {
+            try {
+                const response = await axios.get('/api/products?category=连接器&limit=12');
+                if (response.data.success) {
+                    displayConnectorProducts(response.data.data.products);
+                }
+            } catch (error) {
+                console.error('加载连接器商品失败：', error);
+            }
+        }
+
+        function displayConnectorProducts(products) {
+            const container = document.getElementById('connectorProducts');
+            container.innerHTML = products.map(product => `
+                <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 hover:shadow-md transition duration-200">
+                    <h4 class="font-semibold text-gray-800 text-sm mb-2">${product.name}</h4>
+                    <p class="text-xs text-gray-600 mb-2">${product.company_name}</p>
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-blue-600 font-medium">¥${product.price}</span>
+                        <span class="text-gray-500">库存: ${product.stock}</span>
+                    </div>
+                    <div class="mt-2 text-xs text-gray-500">SKU: ${product.sku}</div>
+                </div>
+            `).join('');
+        }
+
+        // 页面加载时自动加载连接器商品
+        document.addEventListener('DOMContentLoaded', loadConnectorProducts);
+    </script>
+</body>
+</html>

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV导入测试</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 800px; 
+            margin: 0 auto; 
+            padding: 20px; 
+        }
+        .result { 
+            background: #f0f0f0; 
+            padding: 15px; 
+            border-radius: 5px; 
+            margin: 10px 0;
+            white-space: pre-wrap;
+        }
+        .success { background-color: #d4edda; }
+        .error { background-color: #f8d7da; }
+        button { 
+            background: #007bff; 
+            color: white; 
+            padding: 10px 20px; 
+            border: none; 
+            border-radius: 5px; 
+            cursor: pointer;
+        }
+        button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <h1>CSV批量导入测试</h1>
+    
+    <div>
+        <h3>1. 登录获取Token</h3>
+        <button onclick="login()">登录</button>
+        <div id="loginResult" class="result"></div>
+    </div>
+    
+    <div>
+        <h3>2. 选择CSV文件进行导入</h3>
+        <input type="file" id="csvFile" accept=".csv" />
+        <button onclick="importCSV()">导入CSV</button>
+        <div id="importResult" class="result"></div>
+    </div>
+    
+    <div>
+        <h3>3. 查看导入结果</h3>
+        <button onclick="checkStats()">查看统计</button>
+        <div id="statsResult" class="result"></div>
+    </div>
+
+    <script>
+        let authToken = '';
+        const API_BASE = window.location.origin;
+        
+        async function login() {
+            const loginResult = document.getElementById('loginResult');
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: 'admin',
+                        password: 'admin'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    authToken = data.token;
+                    loginResult.className = 'result success';
+                    loginResult.textContent = `登录成功!\nToken: ${authToken.substring(0, 50)}...`;
+                } else {
+                    loginResult.className = 'result error';
+                    loginResult.textContent = `登录失败: ${data.error}`;
+                }
+            } catch (error) {
+                loginResult.className = 'result error';
+                loginResult.textContent = `请求失败: ${error.message}`;
+            }
+        }
+        
+        async function importCSV() {
+            const importResult = document.getElementById('importResult');
+            const fileInput = document.getElementById('csvFile');
+            
+            if (!authToken) {
+                importResult.className = 'result error';
+                importResult.textContent = '请先登录获取Token!';
+                return;
+            }
+            
+            if (!fileInput.files.length) {
+                importResult.className = 'result error';
+                importResult.textContent = '请选择CSV文件!';
+                return;
+            }
+            
+            const file = fileInput.files[0];
+            const csvContent = await file.text();
+            
+            try {
+                importResult.className = 'result';
+                importResult.textContent = '正在导入，请稍候...';
+                
+                const response = await fetch(`${API_BASE}/api/products/batch`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({
+                        csvData: csvContent
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    importResult.className = 'result success';
+                    importResult.textContent = `导入成功!
+成功: ${data.results.successful} 条
+失败: ${data.results.failed} 条
+详情: ${JSON.stringify(data.results, null, 2)}`;
+                } else {
+                    importResult.className = 'result error';
+                    importResult.textContent = `导入失败: ${data.error}`;
+                }
+            } catch (error) {
+                importResult.className = 'result error';
+                importResult.textContent = `请求失败: ${error.message}`;
+            }
+        }
+        
+        async function checkStats() {
+            const statsResult = document.getElementById('statsResult');
+            
+            if (!authToken) {
+                statsResult.className = 'result error';
+                statsResult.textContent = '请先登录获取Token!';
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/stats`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    statsResult.className = 'result success';
+                    statsResult.textContent = `统计信息:
+商品总数: ${data.data.totalProducts}
+总库存: ${data.data.totalStock}
+总价值: ¥${data.data.totalValue}
+公司数量: ${data.data.totalCompanies}`;
+                } else {
+                    statsResult.className = 'result error';
+                    statsResult.textContent = `获取统计失败: ${data.error}`;
+                }
+            } catch (error) {
+                statsResult.className = 'result error';
+                statsResult.textContent = `请求失败: ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>

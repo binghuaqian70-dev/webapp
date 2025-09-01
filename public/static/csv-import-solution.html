@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV导入问题解决方案</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto max-w-4xl p-6">
+        <div class="bg-white rounded-lg shadow-lg p-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-6">
+                <i class="fas fa-tools mr-3 text-blue-600"></i>CSV导入问题解决方案
+            </h1>
+            
+            <!-- 问题说明 -->
+            <div class="mb-8 p-4 bg-red-50 border-l-4 border-red-400 rounded">
+                <h3 class="text-lg font-semibold text-red-800 mb-2">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>遇到的问题
+                </h3>
+                <p class="text-red-700">
+                    前端批量导入报错：<code class="bg-red-100 px-2 py-1 rounded">第2行: Error: D1_ERROR: UNIQUE constraint failed: products.sku</code>
+                </p>
+                <p class="text-red-700 mt-2">
+                    <strong>原因</strong>：CSV文件中的SKU与数据库中现有记录冲突
+                </p>
+            </div>
+
+            <!-- 解决方案 -->
+            <div class="mb-8 p-4 bg-green-50 border-l-4 border-green-400 rounded">
+                <h3 class="text-lg font-semibold text-green-800 mb-4">
+                    <i class="fas fa-check-circle mr-2"></i>解决方案
+                </h3>
+                <div class="space-y-4">
+                    <div class="bg-white p-4 rounded border">
+                        <h4 class="font-semibold text-gray-800 mb-2">
+                            <i class="fas fa-download mr-2 text-blue-600"></i>方案1: 使用全新SKU的CSV文件（推荐）
+                        </h4>
+                        <p class="text-gray-600 mb-3">我们为您生成了一个使用全新SKU的CSV文件，保证不会产生冲突。</p>
+                        <a href="/static/51连接器-9.1-utf8-new-20250901-055816.csv" 
+                           class="inline-block bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition duration-200"
+                           download>
+                            <i class="fas fa-download mr-2"></i>下载新CSV文件
+                        </a>
+                        <p class="text-sm text-gray-500 mt-2">文件名：51连接器-9.1-utf8-new-20250901-055816.csv</p>
+                    </div>
+                    
+                    <div class="bg-white p-4 rounded border">
+                        <h4 class="font-semibold text-gray-800 mb-2">
+                            <i class="fas fa-trash-alt mr-2 text-red-600"></i>方案2: 清除现有连接器数据后重新导入
+                        </h4>
+                        <p class="text-gray-600 mb-3">如果您想使用原始CSV文件，可以先清除数据库中现有的连接器商品。</p>
+                        <button onclick="clearConnectorData()" 
+                                class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded transition duration-200">
+                            <i class="fas fa-trash-alt mr-2"></i>清除现有连接器数据
+                        </button>
+                        <p class="text-sm text-gray-500 mt-2">⚠️ 注意：此操作不可逆，请谨慎使用</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 当前状态 -->
+            <div class="mb-8 p-4 bg-blue-50 border-l-4 border-blue-400 rounded">
+                <h3 class="text-lg font-semibold text-blue-800 mb-4">
+                    <i class="fas fa-info-circle mr-2"></i>当前数据库状态
+                </h3>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div class="bg-white p-3 rounded text-center" id="totalProducts">
+                        <div class="text-2xl font-bold text-blue-600">-</div>
+                        <div class="text-blue-800 text-sm">总商品数</div>
+                    </div>
+                    <div class="bg-white p-3 rounded text-center" id="connectorProducts">
+                        <div class="text-2xl font-bold text-green-600">-</div>
+                        <div class="text-green-800 text-sm">连接器商品</div>
+                    </div>
+                    <div class="bg-white p-3 rounded text-center" id="totalStock">
+                        <div class="text-2xl font-bold text-purple-600">-</div>
+                        <div class="text-purple-800 text-sm">总库存</div>
+                    </div>
+                    <div class="bg-white p-3 rounded text-center" id="totalValue">
+                        <div class="text-2xl font-bold text-orange-600">-</div>
+                        <div class="text-orange-800 text-sm">总价值(万元)</div>
+                    </div>
+                </div>
+                <button onclick="refreshStats()" 
+                        class="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition duration-200">
+                    <i class="fas fa-sync-alt mr-2"></i>刷新状态
+                </button>
+            </div>
+
+            <!-- 测试导入 -->
+            <div class="mb-8 p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded">
+                <h3 class="text-lg font-semibold text-yellow-800 mb-4">
+                    <i class="fas fa-vial mr-2"></i>测试导入功能
+                </h3>
+                <p class="text-yellow-700 mb-4">您可以先上传少量数据进行测试，验证导入功能是否正常。</p>
+                
+                <div class="space-y-4">
+                    <div>
+                        <input type="file" id="testCsvFile" class="hidden" accept=".csv" />
+                        <button onclick="document.getElementById('testCsvFile').click()" 
+                                class="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded transition duration-200">
+                            <i class="fas fa-file-csv mr-2"></i>选择CSV文件
+                        </button>
+                        <span id="selectedFileName" class="ml-3 text-gray-600"></span>
+                    </div>
+                    
+                    <div>
+                        <button onclick="testImport()" 
+                                id="testImportBtn"
+                                class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition duration-200 disabled:opacity-50"
+                                disabled>
+                            <i class="fas fa-play mr-2"></i>测试导入(前5条)
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="testResult" class="mt-4 hidden"></div>
+            </div>
+
+            <!-- 操作日志 -->
+            <div class="p-4 bg-gray-50 border border-gray-200 rounded">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                    <i class="fas fa-history mr-2"></i>操作日志
+                </h3>
+                <div id="logContainer" class="bg-white p-3 rounded border max-h-60 overflow-y-auto">
+                    <p class="text-gray-600 text-sm">等待操作...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+    <script>
+        const API_BASE = window.location.origin;
+        let authToken = '';
+        
+        // 页面加载时自动登录和刷新状态
+        document.addEventListener('DOMContentLoaded', async () => {
+            await login();
+            await refreshStats();
+        });
+        
+        async function login() {
+            try {
+                const response = await axios.post(`${API_BASE}/api/auth/login`, {
+                    username: 'admin',
+                    password: 'admin'
+                });
+                
+                if (response.data.success) {
+                    authToken = response.data.data.token;
+                    log('✅ 自动登录成功');
+                    return true;
+                } else {
+                    log('❌ 登录失败: ' + response.data.error);
+                    return false;
+                }
+            } catch (error) {
+                log('❌ 登录异常: ' + error.message);
+                return false;
+            }
+        }
+        
+        async function refreshStats() {
+            if (!authToken) {
+                log('❌ 未登录，无法获取统计信息');
+                return;
+            }
+            
+            try {
+                // 获取总体统计
+                const statsResponse = await axios.get(`${API_BASE}/api/stats`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                if (statsResponse.data.success) {
+                    const stats = statsResponse.data.data;
+                    document.getElementById('totalProducts').querySelector('div').textContent = stats.totalProducts;
+                    document.getElementById('totalStock').querySelector('div').textContent = new Intl.NumberFormat().format(stats.totalStock);
+                    document.getElementById('totalValue').querySelector('div').textContent = (stats.totalValue / 10000).toFixed(1);
+                }
+                
+                // 获取连接器商品数量
+                const connectorResponse = await axios.get(`${API_BASE}/api/products?category=连接器&limit=1`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                if (connectorResponse.data.success) {
+                    const connectorCount = connectorResponse.data.pagination?.total || 0;
+                    document.getElementById('connectorProducts').querySelector('div').textContent = connectorCount;
+                }
+                
+                log('📊 统计信息已更新');
+                
+            } catch (error) {
+                log('❌ 获取统计信息失败: ' + error.message);
+            }
+        }
+        
+        async function clearConnectorData() {
+            if (!authToken) {
+                log('❌ 未登录，无法执行清除操作');
+                return;
+            }
+            
+            if (!confirm('确定要清除所有连接器商品吗？此操作不可逆！')) {
+                return;
+            }
+            
+            log('🗑️ 开始清除连接器商品数据...');
+            
+            try {
+                // 这里应该调用清除API，目前先模拟
+                log('⚠️ 清除功能需要后端API支持，请联系管理员');
+                
+            } catch (error) {
+                log('❌ 清除操作失败: ' + error.message);
+            }
+        }
+        
+        // 文件选择处理
+        document.getElementById('testCsvFile').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                document.getElementById('selectedFileName').textContent = file.name;
+                document.getElementById('testImportBtn').disabled = false;
+                log(`📎 已选择文件: ${file.name}`);
+            }
+        });
+        
+        async function testImport() {
+            const fileInput = document.getElementById('testCsvFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                log('❌ 请先选择CSV文件');
+                return;
+            }
+            
+            if (!authToken) {
+                log('❌ 未登录，无法执行导入操作');
+                return;
+            }
+            
+            log('🧪 开始测试导入前5条数据...');
+            
+            try {
+                const csvContent = await file.text();
+                const products = parseCSV(csvContent).slice(0, 5); // 只取前5条
+                
+                log(`📋 准备导入 ${products.length} 条测试数据`);
+                
+                const response = await axios.post(`${API_BASE}/api/products/batch`, {
+                    products: products
+                }, {
+                    headers: { 
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.data.success) {
+                    const result = response.data.data;
+                    log(`✅ 测试导入完成: 成功 ${result.successCount} 条，失败 ${result.errorCount} 条`);
+                    
+                    if (result.errors && result.errors.length > 0) {
+                        log('⚠️ 错误详情:');
+                        result.errors.slice(0, 3).forEach(error => {
+                            log(`   - ${error}`);
+                        });
+                    }
+                    
+                    // 刷新统计
+                    await refreshStats();
+                } else {
+                    log('❌ 测试导入失败: ' + response.data.error);
+                }
+                
+            } catch (error) {
+                log('❌ 测试导入异常: ' + error.message);
+            }
+        }
+        
+        function parseCSV(csvContent) {
+            const lines = csvContent.trim().split('\\n');
+            const headers = lines[0].split(',');
+            const products = [];
+
+            for (let i = 1; i < lines.length; i++) {
+                const values = lines[i].split(',');
+                const product = {};
+                
+                headers.forEach((header, index) => {
+                    product[header.trim()] = values[index]?.trim() || '';
+                });
+                
+                // 转换数据类型
+                if (product.price) product.price = parseFloat(product.price);
+                if (product.stock) product.stock = parseInt(product.stock);
+                
+                products.push(product);
+            }
+
+            return products;
+        }
+        
+        function log(message) {
+            const logContainer = document.getElementById('logContainer');
+            const time = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('p');
+            logEntry.className = 'text-sm text-gray-700 mb-1';
+            logEntry.textContent = `[${time}] ${message}`;
+            
+            // 插入到最前面
+            if (logContainer.firstChild && logContainer.firstChild.textContent !== '等待操作...') {
+                logContainer.insertBefore(logEntry, logContainer.firstChild);
+            } else {
+                logContainer.innerHTML = '';
+                logContainer.appendChild(logEntry);
+            }
+            
+            // 限制日志条数
+            while (logContainer.children.length > 50) {
+                logContainer.removeChild(logContainer.lastChild);
+            }
+            
+            // 滚动到顶部
+            logContainer.scrollTop = 0;
+        }
+    </script>
+</body>
+</html>
