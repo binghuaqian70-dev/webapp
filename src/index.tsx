@@ -136,6 +136,61 @@ app.use('/api/users/*', authMiddleware)
 // 静态文件服务
 app.use('/static/*', serveStatic({ root: './public' }))
 
+// 编码转换API（公共API，不需要认证）
+app.post('/api/convert-encoding', async (c) => {
+  try {
+    const formData = await c.req.formData();
+    const file = formData.get('file') as File;
+    
+    if (!file) {
+      return c.json({ success: false, error: '没有接收到文件' }, 400);
+    }
+    
+    // 读取文件内容
+    const arrayBuffer = await file.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuffer);
+    
+    // 先尝试UTF-8解码
+    let text = '';
+    try {
+      const decoder = new TextDecoder('utf-8', { fatal: false });
+      text = decoder.decode(bytes);
+    } catch (error) {
+      return c.json({ success: false, error: 'UTF-8解码失败' }, 500);
+    }
+    
+    // 如果检测到乱码，进行简单的字符映射替换
+    if (text.includes('��')) {
+      // 常见的GBK到UTF-8乱码字符映射
+      const gbkMappings = new Map([
+        ['��Ʒ����', '商品名称'],
+        ['��˾����', '公司名称'], 
+        ['�ۼ�', '售价'],
+        ['���', '库存'],
+        ['�Ŷ����ֿƼ����Ϻ������޹�˾', '信都数字科技（上海）有限公司'],
+        ['������', '连接器'],
+        ['��������', '电子元件']
+      ]);
+      
+      // 应用映射替换
+      for (const [gbkChar, utf8Char] of gbkMappings) {
+        text = text.replace(new RegExp(gbkChar, 'g'), utf8Char);
+      }
+    }
+    
+    // 返回转换后的文本
+    return new Response(text, {
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8'
+      }
+    });
+    
+  } catch (error) {
+    console.error('编码转换错误:', error);
+    return c.json({ success: false, error: '编码转换失败: ' + error.message }, 500);
+  }
+});
+
 // 认证相关API
 app.post('/api/auth/login', async (c) => {
   try {

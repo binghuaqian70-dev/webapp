@@ -210,20 +210,43 @@ HDMI 高清连接器,三星电子,25.50,50
                 return;
             }
             
-            selectedFile = file;
+            log('📁 正在处理文件...');
             
-            // 显示文件信息
-            document.getElementById('fileInfo').innerHTML = `
-                <div class="grid grid-cols-3 gap-4">
-                    <div><strong>文件名：</strong> ${file.name}</div>
-                    <div><strong>大小：</strong> ${(file.size / 1024).toFixed(2)} KB</div>
-                    <div><strong>修改时间：</strong> ${new Date(file.lastModified).toLocaleString()}</div>
-                </div>
-            `;
-            
-            // 解析CSV
             try {
-                const csvContent = await file.text();
+                // 首先尝试使用UTF-8读取文件
+                let csvContent = await file.text();
+                let processedFile = file;
+                
+                // 检测编码
+                const encoding = detectEncoding(csvContent);
+                
+                if (encoding === 'gbk') {
+                    log('🔄 检测到GBK编码，正在转换为UTF-8...');
+                    try {
+                        // 转换编码
+                        processedFile = await convertGBKToUTF8(file);
+                        csvContent = await processedFile.text();
+                        log('✅ 编码转换成功');
+                    } catch (error) {
+                        log('⚠️ 编码转换失败，尝试原始内容: ' + error.message);
+                        // 如果转换失败，继续使用原始内容
+                    }
+                } else {
+                    log('✅ 检测到UTF-8编码');
+                }
+                
+                selectedFile = processedFile;
+                
+                // 显示文件信息
+                document.getElementById('fileInfo').innerHTML = `
+                    <div class="grid grid-cols-3 gap-4">
+                        <div><strong>文件名：</strong> ${file.name}</div>
+                        <div><strong>大小：</strong> ${(file.size / 1024).toFixed(2)} KB</div>
+                        <div><strong>编码：</strong> ${encoding === 'gbk' ? 'GBK → UTF-8' : 'UTF-8'}</div>
+                    </div>
+                `;
+                
+                // 解析CSV
                 parsedData = parseCSV(csvContent);
                 
                 if (parsedData.length === 0) {
@@ -239,8 +262,91 @@ HDMI 高清连接器,三星电子,25.50,50
                 log(`📄 成功解析CSV文件，共 ${parsedData.length} 行数据`);
                 
             } catch (error) {
-                log('❌ CSV解析失败: ' + error.message);
+                log('❌ 文件处理失败: ' + error.message);
             }
+        }
+
+        // 编码检测和转换函数
+        function detectEncoding(text) {
+            // 检测是否包含乱码字符（常见的GBK在UTF-8下的显示）
+            const garbledPatterns = [
+                /��/g,              // 最常见的乱码
+                /���/g,             // 三字节乱码
+                /Ʒ����/g,           // 商品名称的乱码形式
+                /��˾����/g,         // 公司名称的乱码形式
+                /�ۼ�/g,            // 售价的乱码形式
+            ];
+            
+            const hasGarbledText = garbledPatterns.some(pattern => pattern.test(text));
+            
+            // 检测是否包含正常的中文字符
+            const chinesePattern = /[\u4e00-\u9fa5]/g;
+            const hasValidChinese = chinesePattern.test(text);
+            
+            // 如果有乱码且没有正常中文，很可能是编码问题
+            if (hasGarbledText && !hasValidChinese) {
+                return 'gbk';
+            }
+            
+            // 如果有乱码但也有正常中文，可能是混合编码，也尝试转换
+            if (hasGarbledText) {
+                return 'gbk';
+            }
+            
+            return 'utf-8';
+        }
+        
+        // 由于浏览器TextDecoder对GBK支持有限，我们使用服务端转换
+        async function convertGBKToUTF8(file) {
+            try {
+                // 创建FormData上传文件给后端转换
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                const response = await fetch('/api/convert-encoding', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    const convertedText = await response.text();
+                    // 创建新的UTF-8文件
+                    const utf8Blob = new Blob([convertedText], { type: 'text/csv;charset=utf-8' });
+                    return new File([utf8Blob], file.name, { type: 'text/csv' });
+                } else {
+                    throw new Error('服务端转换失败');
+                }
+            } catch (error) {
+                // 如果服务端转换失败，尝试客户端简单处理
+                return simpleGBKConvert(file);
+            }
+        }
+        
+        // 简单的客户端GBK转换（有限支持）
+        async function simpleGBKConvert(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    let text = e.target.result;
+                    
+                    // 简单的字符替换（针对常见的CSV标题）
+                    const gbkMappings = {
+                        '��Ʒ����': '商品名称',
+                        '��˾����': '公司名称', 
+                        '�ۼ�': '售价',
+                        '���': '库存',
+                        '�Ŷ����ֿƼ����Ϻ������޹�˾': '信都数字科技（上海）有限公司'
+                    };
+                    
+                    for (const [gbk, utf8] of Object.entries(gbkMappings)) {
+                        text = text.replace(new RegExp(gbk, 'g'), utf8);
+                    }
+                    
+                    const utf8Blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
+                    resolve(new File([utf8Blob], file.name, { type: 'text/csv' }));
+                };
+                reader.readAsText(file);
+            });
         }
 
         // 中文标题到英文字段的映射
