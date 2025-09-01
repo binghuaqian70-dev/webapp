@@ -1,209 +1,148 @@
-# 商品管理系统 🚀
+# 智能CSV导入商品管理系统
 
 ## 项目概述
-- **名称**: 商品管理系统
-- **目标**: 支持2万条商品数据的管理、查询、添加和批量导入
-- **技术栈**: Hono + TypeScript + Cloudflare D1 + TailwindCSS + JWT认证
+- **名称**: 智能CSV导入商品管理系统  
+- **目标**: 支持4列最简CSV格式的智能批量导入，自动补全缺失字段
+- **主要功能**: 商品管理、用户管理、智能CSV批量导入、SKU自动生成
 
-## 🌐 在线访问
-- **生产环境**: https://0c5f87e3.webapp-product-mgmt.pages.dev ✅
+## 🌐 线上地址
+- **生产环境**: https://5fefc5e6.webapp-csv-import.pages.dev
+- **智能导入页面**: https://5fefc5e6.webapp-csv-import.pages.dev/static/smart-csv-import.html
 - **GitHub仓库**: https://github.com/binghuaqian70-dev/webapp
-- **默认登录**: 用户名/密码: `admin`/`admin`
 
-## 数据规模
+## 🚀 核心功能
 
-### 开发环境
-- **商品总数**: 5,231条 ✅
-- **分类数量**: 17个
-- **公司数量**: 101个
-- **总库存**: 1,104,167件
-- **总价值**: ¥18.8亿
+### 1. 智能CSV导入
+- ✅ **最简4列格式支持**: `name,company_name,price,stock`
+- ✅ **智能字段补全**: 自动生成SKU、分类、描述
+- ✅ **唯一SKU生成**: 格式`CONN-{NAME}-{TIMESTAMP}-{RANDOM}`
+- ✅ **冲突智能处理**: 自动解决SKU重复问题
+- ✅ **拖拽上传界面**: 用户友好的前端体验
+- ✅ **实时处理反馈**: 详细的成功/错误统计
 
-### 生产环境 ✅ **已同步**
-- **商品总数**: 5,231条 ✅ **与开发环境完全一致**
-- **分类数量**: 17个
-- **公司数量**: 103个
-- **总库存**: 1,104,287件
-- **总价值**: ¥18.8亿
+### 2. 商品管理
+- ✅ **分页查询**: 支持多字段搜索和筛选
+- ✅ **全文搜索**: 支持名称、公司、描述、分类、SKU搜索
+- ✅ **CRUD操作**: 完整的增删改查功能
+- ✅ **批量导入**: 支持JSON和CSV两种格式
 
-## 功能特性
+### 3. 用户管理
+- ✅ **身份认证**: JWT token认证系统
+- ✅ **角色管理**: 管理员/用户角色权限控制
+- ✅ **安全登录**: 密码验证和会话管理
 
-### ✅ 已完成功能
+## 🏗️ 技术架构
 
-1. **🔐 认证系统** 
-   - JWT令牌认证保护所有API
-   - 安全登录/登出功能
-   - 自动令牌过期处理
-   - 默认管理员账户: admin/admin
-   - **完善的权限控制系统**:
-     - 管理员 (`admin`): 完整权限（商品管理 + 用户管理）
-     - 普通用户 (`user`): 仅商品管理权限，完全无法访问用户管理
-     - 前后端双重权限验证
+### 后端技术栈
+- **框架**: Hono (轻量级Web框架)
+- **运行环境**: Cloudflare Workers (边缘计算)
+- **数据库**: Cloudflare D1 SQLite (分布式数据库)
+- **认证**: JWT Token + 角色权限控制
 
-2. **📊 数据统计仪表板**
-   - 商品总数、总库存、总价值、公司数量统计
-   - 分类分布图表展示
-   - 实时数据更新
+### 前端技术栈
+- **样式**: TailwindCSS (CDN)
+- **图标**: FontAwesome (CDN)
+- **HTTP客户端**: Axios (CDN)
+- **交互**: 原生JavaScript + 拖拽API
 
-3. **📦 商品管理**
-   - 商品列表分页显示（每页20条）
-   - 多字段搜索：商品名、公司名、描述、分类、SKU
-   - 高级筛选：公司、分类、价格范围、库存
-   - 字段排序：创建时间、商品名、公司名、价格、库存
-   - 商品编辑和删除（软删除）
-   - 实时搜索建议
+### 数据模型
 
-4. **➕ 商品添加**
-   - 表单验证：必填字段检查
-   - SKU唯一性验证
-   - 商品信息完整录入
+#### Products表
+```sql
+CREATE TABLE products (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  company_name TEXT NOT NULL, 
+  price REAL NOT NULL,
+  stock INTEGER NOT NULL,
+  sku TEXT UNIQUE,
+  category TEXT,
+  description TEXT,
+  status TEXT DEFAULT 'active',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
 
-5. **📂 批量导入**
-   - CSV文件上传（拖拽支持）
-   - 数据格式验证和预览
-   - 批量处理结果报告
-   - 错误详情展示
+#### Users表
+```sql
+CREATE TABLE users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT UNIQUE NOT NULL,
+  password TEXT NOT NULL,
+  email TEXT,
+  role TEXT DEFAULT 'user',
+  status TEXT DEFAULT 'active', 
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
 
-6. **👥 用户管理** (仅管理员)
-   - 用户列表查看和搜索
-   - 用户信息编辑（邮箱、角色、状态）
-   - 用户密码重置
-   - 用户删除（软删除）
-   - 角色权限控制（管理员/普通用户）
-   - **权限隔离**: 普通用户完全无法看到和访问用户管理功能
+## 📋 API端点
 
-### 🔄 核心API接口
-
-#### 认证接口
-- `POST /api/auth/login` - 用户登录（获取JWT令牌）
-- `GET /api/auth/verify` - 验证令牌有效性
+### 认证相关
+- `POST /api/auth/login` - 用户登录
+- `POST /api/auth/register` - 用户注册
 - `POST /api/auth/logout` - 用户登出
 
-#### 商品管理接口 🔒 *需要认证*
-- `GET /api/products` - 分页查询商品（支持搜索和过滤）
-- `GET /api/products/:id` - 获取单个商品详情  
-- `POST /api/products` - 添加新商品
-- `PUT /api/products/:id` - 更新商品信息
-- `DELETE /api/products/:id` - 删除商品（软删除）
+### 商品管理
+- `GET /api/products` - 分页查询商品(支持搜索筛选)
+- `GET /api/products/:id` - 获取单个商品
+- `POST /api/products` - 创建新商品
+- `PUT /api/products/:id` - 更新商品
+- `DELETE /api/products/:id` - 删除商品
+- `POST /api/products/batch` - JSON批量导入
+- `POST /api/products/import-csv` - **智能CSV导入** (核心功能)
 
-#### 批量操作接口 🔒 *需要认证*
-- `POST /api/products/batch` - 批量导入商品
+### 系统信息
+- `GET /api/stats` - 获取系统统计信息
+- `GET /api/search-fields` - 获取搜索字段信息
 
-#### 统计和搜索接口 🔒 *需要认证*
-- `GET /api/stats` - 获取统计信息
-- `GET /api/search` - 全文搜索商品（FTS5）
+## 🛠️ 智能CSV导入功能详解
 
-### 📊 数据架构
+### 支持的CSV格式
 
-#### 数据模型
-```sql
-商品表 (products):
-- id: 主键
-- name: 商品名称（必填）
-- company_name: 公司名称（必填） 
-- price: 售价（必填）
-- stock: 库存（必填）
-- description: 商品描述
-- category: 商品分类
-- sku: 商品编号（唯一）
-- status: 商品状态（active/inactive）
-- created_at/updated_at: 时间戳
-```
-
-#### 存储服务
-- **Cloudflare D1**: SQLite-based分布式数据库
-- **索引优化**: 为高频查询字段创建索引
-- **FTS5全文搜索**: 支持商品名和公司名模糊搜索
-- **触发器同步**: 自动维护全文搜索索引
-
-#### 性能优化
-- 复合索引支持复杂查询
-- 分页查询减少数据传输
-- 本地开发使用SQLite缓存
-- 软删除避免数据丢失
-
-## 🎯 用户指南
-
-### 登录使用
-1. **访问系统**: 打开 https://0c5f87e3.webapp-product-mgmt.pages.dev
-2. **登录账户**: 用户名 `admin`，密码 `admin`
-3. **自动跳转**: 登录成功后自动进入主界面
-
-### 基础操作
-1. **查看统计**: 首页显示商品总数、库存、价值等关键指标
-2. **浏览商品**: 商品管理页面支持分页浏览和多字段搜索
-3. **添加商品**: 填写商品基本信息，系统自动验证
-4. **批量导入**: 上传CSV文件，支持数千条商品一键导入
-5. **安全退出**: 点击右下角用户头像旁的退出按钮
-
-### CSV导入格式
+#### 最简格式 (4列)
 ```csv
-name,company_name,price,stock,description,category,sku
-iPhone 15 Pro,苹果公司,8999.00,50,最新款iPhone,数码电子,APPLE-IP15P-001
+name,company_name,price,stock
+USB Type-C 连接器,苹果公司,15.99,100
+HDMI 高清连接器,三星电子,25.50,50
 ```
 
-### 搜索技巧
-- **关键词搜索**: 在商品名、公司名、描述中查找
-- **精确筛选**: 使用公司名、分类、价格范围过滤
-- **组合查询**: 多个条件同时使用，提高查询精度
+#### 完整格式 (7列)  
+```csv
+name,company_name,price,stock,sku,category,description
+USB连接器,苹果公司,15.99,100,APPLE-USB-001,连接器,高质量USB连接器
+```
 
-## 技术实现
+### 智能补全规则
+- **SKU自动生成**: `CONN-{名称前缀}-{时间戳}-{随机码}`
+- **默认分类**: "连接器"
+- **自动描述**: "连接器产品 - {商品名称}"
+- **冲突处理**: 自动重新生成唯一SKU
 
-### 后端架构
-- **框架**: Hono (轻量级 Web 框架)
-- **运行时**: Cloudflare Workers
-- **数据库**: Cloudflare D1 (全球分布式SQLite)
-- **API设计**: RESTful API + JSON响应
+### 使用方法
+1. 访问智能导入页面
+2. 拖拽或选择CSV文件
+3. 系统自动解析并预览
+4. 点击导入开始批量处理
+5. 查看详细的成功/错误统计
 
-### 前端技术
-- **样式**: TailwindCSS + 自定义CSS
-- **图表**: Chart.js
-- **HTTP客户端**: Axios
-- **图标**: Font Awesome
+## 🔐 默认账户
+- **用户名**: admin
+- **密码**: admin
+- **角色**: 管理员
 
-### 开发工具
-- **构建工具**: Vite
-- **部署工具**: Wrangler
-- **进程管理**: PM2
-- **版本控制**: Git
+## 🚀 部署状态
+- **平台**: Cloudflare Pages
+- **状态**: ✅ 生产环境运行中
+- **数据库**: Cloudflare D1 (远程)
+- **最后更新**: 2025-09-01
 
-## 🚀 部署信息
-- **平台**: Cloudflare Pages ✅ **生产环境已上线**
-- **生产URL**: https://0c5f87e3.webapp-product-mgmt.pages.dev
-- **项目名称**: webapp-product-mgmt
-- **状态**: ✅ 完整功能已部署并正常运行
-- **认证系统**: ✅ JWT认证保护
-- **数据库**: Cloudflare D1分布式数据库 + FTS5全文搜索
-- **功能完整度**: ✅ 100% (认证、统计、管理、搜索、导入)
-- **性能**: 支持5000+商品数据的毫秒级查询
-- **安全性**: 所有API端点受JWT令牌保护
-- **最后更新**: 2025-08-31 16:05 GMT
-- **部署分支**: main
+## 💡 使用指南
+1. **登录系统**: 使用admin/admin登录管理界面
+2. **智能导入**: 访问智能导入页面上传4列CSV文件
+3. **商品管理**: 在主界面查看、搜索、编辑商品
+4. **批量操作**: 使用智能导入功能批量添加商品数据
 
-## 性能表现
-- **查询响应**: < 200ms (5000+商品)
-- **搜索功能**: FTS5全文搜索，支持模糊匹配
-- **分页加载**: 每页20条，1046页数据
-- **并发处理**: 基于Cloudflare Workers边缘计算
-
-## 修复记录
-- **2025-08-31**: ✅ 修复生产环境数据库字段不匹配问题
-- **2025-08-31**: ✅ 修复前端API调用失败问题
-- **2025-08-31**: ✅ 添加生产环境示例数据
-- **2025-08-31**: ✅ 完整迁移5,231条测试数据到生产环境
-
-## 数据迁移详情
-- **迁移方式**: Python脚本自动化导出/导入
-- **数据完整性**: ✅ 5,231条数据完整迁移
-- **迁移时间**: < 1分钟
-- **数据库大小**: 2.27MB (生产环境)
-- **验证结果**: ✅ 所有API和前端功能正常
-
-## 后续规划
-1. ✅ 部署到Cloudflare Pages生产环境
-2. ✅ 为生产数据库导入测试数据
-3. ✅ 完成开发环境到生产环境的数据同步
-3. 添加商品图片上传功能
-4. 实现用户权限管理
-5. 添加库存预警功能
-6. 导出功能和报表生成
+系统已完全部署并可投入生产使用！
