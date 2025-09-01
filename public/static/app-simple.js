@@ -1133,7 +1133,7 @@ function handleCSVFile(input) {
             
             // 检测是否包含GBK乱码字符，如果有则标记需要处理
             const hasGBKIssues = csvContent.includes('��') || 
-                                csvContent.includes('') || 
+                                csvContent.includes('���') || 
                                 /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/.test(csvContent);
             
             if (hasGBKIssues) {
@@ -1176,13 +1176,30 @@ function handleCSVFile(input) {
 // 调用后端CSV导入API（使用独立页面相同的API端点）
 function importCSVContent(csvContent) {
     console.log('🚀 调用后端CSV导入API...');
+    console.log('📊 CSV数据统计:', {
+        length: csvContent.length,
+        firstLine: csvContent.split('\n')[0],
+        hasNullChars: csvContent.indexOf('\0') !== -1,
+        hasControlChars: /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/.test(csvContent)
+    });
+    
+    let requestBody;
+    try {
+        requestBody = JSON.stringify({ csvData: csvContent });
+        console.log('✅ JSON序列化成功，长度:', requestBody.length);
+    } catch (jsonError) {
+        console.error('❌ JSON序列化失败:', jsonError);
+        showMessage('文件内容无法序列化，可能包含无效字符', 'error');
+        hideLoading();
+        return;
+    }
     
     makeAuthenticatedRequest('/api/products/import-csv', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ csvData: csvContent })
+        body: requestBody
     })
     .then(function(response) {
         return response.json();

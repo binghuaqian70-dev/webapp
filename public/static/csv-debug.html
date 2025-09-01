@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV导入调试工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold text-gray-800 mb-6">CSV导入调试工具</h1>
+        
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">文件上传测试</h2>
+            
+            <input type="file" id="fileInput" accept=".csv" class="mb-4">
+            <button onclick="debugFile()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                调试文件
+            </button>
+            
+            <div id="debugOutput" class="mt-6 p-4 bg-gray-50 rounded border-l-4 border-blue-500" style="display:none;">
+                <h3 class="font-semibold mb-2">调试信息:</h3>
+                <pre id="debugContent" class="text-sm overflow-auto max-h-96"></pre>
+            </div>
+            
+            <div id="testResult" class="mt-6" style="display:none;">
+                <h3 class="font-semibold mb-2">API测试结果:</h3>
+                <div id="testContent" class="p-4 rounded"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function debugFile() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('请选择CSV文件');
+                return;
+            }
+            
+            const debugOutput = document.getElementById('debugOutput');
+            const debugContent = document.getElementById('debugContent');
+            
+            debugOutput.style.display = 'block';
+            debugContent.textContent = '正在处理文件...\\n';
+            
+            let debugInfo = [];
+            debugInfo.push(`文件名: ${file.name}`);
+            debugInfo.push(`文件大小: ${file.size} bytes`);
+            debugInfo.push(`MIME类型: ${file.type}`);
+            debugInfo.push('');
+            
+            // 1. 尝试UTF-8读取
+            debugInfo.push('=== UTF-8 读取测试 ===');
+            const reader1 = new FileReader();
+            reader1.onload = async function(e) {
+                const utfContent = e.target.result;
+                debugInfo.push(`UTF-8内容长度: ${utfContent.length}`);
+                debugInfo.push(`UTF-8前100字符: ${utfContent.substring(0, 100)}`);
+                
+                const hasGBKIssues = utfContent.includes('��') || 
+                                    utfContent.includes('') || 
+                                    /[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]/.test(utfContent);
+                debugInfo.push(`检测到GBK问题: ${hasGBKIssues}`);
+                debugInfo.push('');
+                
+                // 2. 如果检测到问题，尝试ArrayBuffer读取
+                if (hasGBKIssues) {
+                    debugInfo.push('=== ArrayBuffer 读取测试 ===');
+                    const reader2 = new FileReader();
+                    reader2.onload = async function(arrayEvent) {
+                        const arrayBuffer = arrayEvent.target.result;
+                        const uint8Array = new Uint8Array(arrayBuffer);
+                        
+                        debugInfo.push(`ArrayBuffer大小: ${arrayBuffer.byteLength}`);
+                        debugInfo.push(`Uint8Array长度: ${uint8Array.length}`);
+                        
+                        // 转换为原始字符串
+                        let rawContent = '';
+                        for (let i = 0; i < uint8Array.length; i++) {
+                            rawContent += String.fromCharCode(uint8Array[i]);
+                        }
+                        
+                        debugInfo.push(`原始内容长度: ${rawContent.length}`);
+                        debugInfo.push(`原始前100字符: ${rawContent.substring(0, 100)}`);
+                        debugInfo.push('');
+                        
+                        // 3. 测试API调用
+                        await testAPICall(rawContent, debugInfo);
+                        
+                        debugContent.textContent = debugInfo.join('\\n');
+                    };
+                    reader2.readAsArrayBuffer(file);
+                } else {
+                    // 3. 测试API调用（UTF-8内容）
+                    await testAPICall(utfContent, debugInfo);
+                    debugContent.textContent = debugInfo.join('\\n');
+                }
+            };
+            reader1.readAsText(file, 'UTF-8');
+        }
+        
+        async function testAPICall(csvContent, debugInfo) {
+            debugInfo.push('=== API 调用测试 ===');
+            
+            try {
+                // 先登录
+                const loginResponse = await axios.post('/api/auth/login', {
+                    username: 'admin',
+                    password: 'admin'
+                });
+                
+                if (!loginResponse.data.success) {
+                    debugInfo.push(`登录失败: ${loginResponse.data.error}`);
+                    return;
+                }
+                
+                const token = loginResponse.data.data.token;
+                debugInfo.push('✅ 登录成功');
+                
+                // 调用CSV导入API
+                const importResponse = await axios.post('/api/products/import-csv', {
+                    csvData: csvContent
+                }, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                debugInfo.push(`API响应状态: ${importResponse.status}`);
+                debugInfo.push(`API响应内容: ${JSON.stringify(importResponse.data, null, 2)}`);
+                
+                // 显示结果
+                const testResult = document.getElementById('testResult');
+                const testContent = document.getElementById('testContent');
+                
+                testResult.style.display = 'block';
+                
+                if (importResponse.data.success) {
+                    testContent.className = 'p-4 rounded bg-green-50 text-green-800 border border-green-200';
+                    testContent.innerHTML = `
+                        <h4 class="font-semibold">✅ 导入成功!</h4>
+                        <p>总记录数: ${importResponse.data.data.total}</p>
+                        <p>成功数: ${importResponse.data.data.successCount}</p>
+                        <p>失败数: ${importResponse.data.data.errorCount}</p>
+                        ${importResponse.data.data.errors.length > 0 ? 
+                            `<p>错误: ${importResponse.data.data.errors.join(', ')}</p>` : ''}
+                    `;
+                } else {
+                    testContent.className = 'p-4 rounded bg-red-50 text-red-800 border border-red-200';
+                    testContent.innerHTML = `
+                        <h4 class="font-semibold">❌ 导入失败</h4>
+                        <p>错误: ${importResponse.data.error}</p>
+                        ${importResponse.data.debug ? 
+                            `<pre class="mt-2 text-xs">${JSON.stringify(importResponse.data.debug, null, 2)}</pre>` : ''}
+                    `;
+                }
+                
+            } catch (error) {
+                debugInfo.push(`API调用异常: ${error.message}`);
+                if (error.response) {
+                    debugInfo.push(`响应状态: ${error.response.status}`);
+                    debugInfo.push(`响应数据: ${JSON.stringify(error.response.data, null, 2)}`);
+                }
+                
+                const testResult = document.getElementById('testResult');
+                const testContent = document.getElementById('testContent');
+                
+                testResult.style.display = 'block';
+                testContent.className = 'p-4 rounded bg-red-50 text-red-800 border border-red-200';
+                testContent.innerHTML = `
+                    <h4 class="font-semibold">❌ API调用异常</h4>
+                    <p>错误: ${error.message}</p>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
