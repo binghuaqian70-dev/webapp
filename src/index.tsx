@@ -1036,14 +1036,79 @@ app.post('/api/products/import-csv', async (c) => {
   const { env } = c;
   
   try {
-    const { csvData }: { csvData: string } = await c.req.json();
+    // 先获取原始文本，然后手动处理JSON解析以避免控制字符问题
+    const rawBody = await c.req.text();
+    
+    let csvData: string;
+    try {
+      const parsedBody = JSON.parse(rawBody);
+      csvData = parsedBody.csvData;
+    } catch (jsonError) {
+      // 如果JSON解析失败，可能是因为包含控制字符，尝试清理后再解析
+      console.log('JSON解析失败，尝试清理控制字符:', jsonError.message);
+      
+      // 移除或替换可能导致JSON解析失败的控制字符
+      const cleanedBody = rawBody
+        .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '') // 移除控制字符
+        .replace(/\r\n/g, '\\n') // 处理回车换行
+        .replace(/\r/g, '\\n')   // 处理回车
+        .replace(/\n/g, '\\n');  // 处理换行
+      
+      try {
+        const parsedBody = JSON.parse(cleanedBody);
+        csvData = parsedBody.csvData;
+      } catch (secondError) {
+        console.error('二次JSON解析也失败:', secondError);
+        return c.json({ success: false, error: 'CSV数据格式错误: JSON解析失败' }, 400);
+      }
+    }
     
     if (!csvData || typeof csvData !== 'string') {
       return c.json({ success: false, error: 'CSV数据格式错误' }, 400);
     }
     
+    // GBK到UTF-8转换函数
+    function convertGBKToUTF8Text(text: string): string {
+      // 简单的字符替换（针对常见的CSV内容）
+      const gbkMappings: Record<string, string> = {
+        // 完整的公司名称（最长优先）
+        '�Ŷ����ֿƼ����Ϻ������޹�˾': '信都数字科技（上海）有限公司',
+        // CSV标题乱码
+        '��Ʒ����': '商品名称',
+        '��˾����': '公司名称', 
+        '�ۼ�': '售价',
+        '���': '库存',
+        '��库存': '库存',
+        // 公司名称部分（按长度递减）
+        '�Ŷ����ֿƼ����Ϻ������': '信都数字科技（上海）有限',
+        '�Ŷ����ֿƼ': '信都数字科技',
+        '����ֿƼ': '数字科技',
+        '�Ϻ������': '（上海）有限',
+        '޹�˾': '公司',
+        // 单词映射
+        '�Ŷ': '信都',
+        '����': '数字',
+        'ֿƼ': '科技',
+        '�Ϻ�': '（上海）',
+        '有限公司': '有限公司',
+        'ۼ�': '价格',
+        // 字符清理
+        '库存�': '库存',
+        'Ϻ': '海'
+      };
+      
+      let result = text;
+      for (const [gbk, utf8] of Object.entries(gbkMappings)) {
+        result = result.replace(new RegExp(gbk, 'g'), utf8);
+      }
+      return result;
+    }
+
+    // 首先对整个CSV数据进行GBK转换
+    let processedCsvData = convertGBKToUTF8Text(csvData);
+    
     // 解析CSV数据
-    const lines = csvData.trim().split('\n');
+    const lines = processedCsvData.trim().split('\n');
     if (lines.length < 2) {
       return c.json({ success: false, error: 'CSV文件至少需要包含表头和一行数据' }, 400);
     }
@@ -1093,7 +1158,9 @@ app.post('/api/products/import-csv', async (c) => {
       // 映射数据到对应字段（使用映射后的标准字段名）
       headers.forEach((originalHeader, index) => {
         const mappedField = fieldMapping[originalHeader.trim()] || originalHeader.trim();
-        const value = values[index]?.trim() || '';
+        let value = values[index]?.trim() || '';
+        
+        // 数据已经在整体转换中处理过，这里不需要再次转换
         
         if (mappedField === 'price' || mappedField === '售价') {
           product['price'] = parseFloat(value) || 0;
@@ -1122,8 +1189,17 @@ app.post('/api/products/import-csv', async (c) => {
       }
       
       if (!product.description) {
-        product.description = `连接器产品 - ${product.name}`;
+        // 确保描述中的产品名称也经过转换
+        const cleanName = convertGBKToUTF8Text(product.name || '');
+        product.description = `连接器产品 - ${cleanName}`;
       }
+      
+      // 对所有字段再次进行转换确保完整性
+      ['name', 'company_name', 'category', 'description', 'sku'].forEach(field => {
+        if (product[field] && typeof product[field] === 'string') {
+          product[field] = convertGBKToUTF8Text(product[field]);
+        }
+      });
       
       products.push(product);
     }

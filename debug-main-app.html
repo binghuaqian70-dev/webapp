@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>主应用CSV处理调试</title>
+</head>
+<body>
+    <h1>主应用CSV处理调试</h1>
+    <textarea id="csvInput" rows="10" cols="50">
+商品名称,公司名称,售价,库存
+智能连接器Pro,信都数字科技（上海）有限公司,88.50,300
+高速连接器Max,华为技术有限公司,125.80,150
+</textarea>
+    <button onclick="testCSVProcessing()">测试CSV处理</button>
+    <div id="result"></div>
+
+    <script>
+        function testCSVProcessing() {
+            const csvContent = document.getElementById('csvInput').value;
+            const lines = csvContent.trim().split('\n');
+            
+            // 解析表头
+            const headers = lines[0].split(',').map(function(h) { return h.trim().replace(/"/g, ''); });
+            console.log('原始标题:', headers);
+            
+            // 中文标题到英文字段的映射
+            const fieldMapping = {
+                '商品名称': 'name',
+                '公司名称': 'company_name', 
+                '售价': 'price',
+                '库存': 'stock',
+                '分类': 'category',
+                '描述': 'description',
+                'SKU': 'sku',
+                // 英文标题（保持兼容性）
+                'name': 'name',
+                'company_name': 'company_name',
+                'price': 'price', 
+                'stock': 'stock',
+                'category': 'category',
+                'description': 'description',
+                'sku': 'sku'
+            };
+            
+            // 映射标题
+            const mappedHeaders = headers.map(function(header) {
+                return fieldMapping[header] || header;
+            });
+            console.log('映射后标题:', mappedHeaders);
+            
+            // 验证必要字段
+            const requiredFields = ['name', 'company_name', 'price', 'stock'];
+            const missingFields = requiredFields.filter(function(field) {
+                return mappedHeaders.indexOf(field) === -1;
+            });
+            
+            console.log('需要的字段:', requiredFields);
+            console.log('缺失的字段:', missingFields);
+            
+            if (missingFields.length > 0) {
+                document.getElementById('result').innerHTML = '❌ 缺少必要字段: ' + missingFields.join(', ');
+                return;
+            }
+            
+            // 解析数据
+            const products = [];
+            for (let i = 1; i < lines.length; i++) {
+                const values = lines[i].split(',').map(function(v) { return v.trim().replace(/"/g, ''); });
+                const product = {};
+                
+                headers.forEach(function(originalHeader, index) {
+                    const mappedField = fieldMapping[originalHeader] || originalHeader;
+                    let value = values[index] || '';
+                    
+                    if (mappedField === 'price') {
+                        product.price = parseFloat(value) || 0;
+                    } else if (mappedField === 'stock') {
+                        product.stock = parseInt(value) || 0;
+                    } else {
+                        product[mappedField] = value;
+                    }
+                });
+                
+                products.push(product);
+            }
+            
+            console.log('解析的产品数据:', products);
+            document.getElementById('result').innerHTML = '✅ 解析成功！检查控制台查看详细数据';
+        }
+    </script>
+</body>
+</html>

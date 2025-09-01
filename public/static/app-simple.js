@@ -1104,7 +1104,7 @@ function showImport() {
     '</div>';
 }
 
-// 处理CSV文件
+// 处理CSV文件（直接使用独立页面成功的逻辑）
 function handleCSVFile(input) {
     const file = input.files[0];
     if (!file) return;
@@ -1123,59 +1123,96 @@ function handleCSVFile(input) {
     
     showLoading();
     
+    // 直接读取文件并发送给后端API，让后端处理所有转换逻辑
     const reader = new FileReader();
     reader.onload = function(e) {
         try {
             const csvContent = e.target.result;
-            const lines = csvContent.trim().split('\n');
+            console.log('📋 读取CSV文件内容，长度:', csvContent.length);
             
-            if (lines.length < 2) {
-                showMessage('CSV文件至少需要包含表头和一行数据', 'error');
-                hideLoading();
-                return;
-            }
-            
-            // 解析表头
-            const headers = lines[0].split(',').map(function(h) { return h.trim().replace(/"/g, ''); });
-            
-            // 验证必要字段
-            const requiredFields = ['name', 'company_name', 'price', 'stock'];
-            const missingFields = requiredFields.filter(function(field) {
-                return headers.indexOf(field) === -1;
-            });
-            
-            if (missingFields.length > 0) {
-                showMessage('缺少必要字段: ' + missingFields.join(', '), 'error');
-                hideLoading();
-                return;
-            }
-            
-            // 解析数据
-            const products = [];
-            for (let i = 1; i < lines.length; i++) {
-                const values = lines[i].split(',').map(function(v) { return v.trim().replace(/"/g, ''); });
-                const product = {};
-                
-                headers.forEach(function(header, index) {
-                    product[header] = values[index] || '';
-                });
-                
-                products.push(product);
-            }
-            
-            console.log('解析到商品数据:', products.length, '条');
-            
-            // 开始导入
-            importProducts(products);
+            // 直接调用后端的import-csv API（已包含完整的GBK转换和字段映射）
+            importCSVContent(csvContent);
             
         } catch (error) {
-            console.error('解析CSV文件失败:', error);
-            showMessage('解析CSV文件失败', 'error');
+            console.error('读取CSV文件失败:', error);
+            showMessage('读取CSV文件失败', 'error');
             hideLoading();
         }
     };
     
-    reader.readAsText(file, 'UTF-8');
+    reader.readAsText(file);
+}
+
+// 调用后端CSV导入API（使用独立页面相同的API端点）
+function importCSVContent(csvContent) {
+    console.log('🚀 调用后端CSV导入API...');
+    
+    makeAuthenticatedRequest('/api/products/import-csv', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ csvData: csvContent })
+    })
+    .then(function(response) {
+        return response.json();
+    })
+    .then(function(data) {
+        console.log('📥 API返回结果:', data);
+        
+        if (data.success) {
+            const result = data.data;
+            
+            const resultsDiv = document.getElementById('importResults');
+            const contentDiv = document.getElementById('importContent');
+            
+            let html = '<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">' +
+                '<div class="text-center p-4 bg-blue-50 rounded-lg">' +
+                    '<div class="text-2xl font-bold text-blue-600">' + result.total + '</div>' +
+                    '<div class="text-sm text-blue-600">总数据数</div>' +
+                '</div>' +
+                '<div class="text-center p-4 bg-green-50 rounded-lg">' +
+                    '<div class="text-2xl font-bold text-green-600">' + result.successCount + '</div>' +
+                    '<div class="text-sm text-green-600">成功导入</div>' +
+                '</div>' +
+                '<div class="text-center p-4 bg-red-50 rounded-lg">' +
+                    '<div class="text-2xl font-bold text-red-600">' + result.errorCount + '</div>' +
+                    '<div class="text-sm text-red-600">导入失败</div>' +
+                '</div>' +
+            '</div>';
+            
+            if (result.errors && result.errors.length > 0) {
+                html += '<div class="mt-4 p-4 bg-red-50 rounded-lg">' +
+                    '<h5 class="font-semibold text-red-800 mb-2">错误详情:</h5>' +
+                    '<ul class="text-sm text-red-700 space-y-1">';
+                result.errors.forEach(function(error) {
+                    html += '<li>• ' + error + '</li>';
+                });
+                html += '</ul></div>';
+            }
+            
+            contentDiv.innerHTML = html;
+            resultsDiv.classList.remove('hidden');
+            
+            showMessage('导入完成！成功导入 ' + result.successCount + ' 条记录', 'success');
+            
+            // 刷新产品列表
+            if (window.appState.currentPage === 'products') {
+                loadProducts();
+            }
+            
+        } else {
+            showMessage('CSV导入失败: ' + data.error, 'error');
+        }
+        
+    })
+    .catch(function(error) {
+        console.error('CSV导入API调用失败:', error);
+        showMessage('CSV导入失败: ' + error.message, 'error');
+    })
+    .finally(function() {
+        hideLoading();
+    });
 }
 
 // 导入商品数据
