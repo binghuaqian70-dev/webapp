@@ -161,8 +161,8 @@ app.post('/api/auth/login', async (c) => {
       }, 401)
     }
     
-    // 简化版：直接比较明文密码
-    if (password !== user.password) {
+    // 简化版：直接比较明文密码 (应使用password_hash字段)
+    if (password !== user.password_hash) {
       return c.json({ 
         success: false, 
         error: '用户名或密码错误'
