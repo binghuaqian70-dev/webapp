@@ -43,13 +43,24 @@
                     <i class="fas fa-check-circle mr-2"></i>支持的CSV格式
                 </h3>
                 <div class="text-green-700">
-                    <p class="mb-2"><strong>最简格式（4列）</strong>：</p>
+                    <p class="mb-2"><strong>中文标题格式（推荐）</strong>：</p>
+                    <code class="bg-green-100 px-2 py-1 rounded block mb-3">商品名称,公司名称,售价,库存</code>
+                    
+                    <p class="mb-2"><strong>英文标题格式</strong>：</p>
                     <code class="bg-green-100 px-2 py-1 rounded block mb-3">name,company_name,price,stock</code>
                     
-                    <p class="mb-2"><strong>完整格式（7列）</strong>：</p>
-                    <code class="bg-green-100 px-2 py-1 rounded block">name,company_name,price,stock,sku,category,description</code>
+                    <p class="mb-2"><strong>完整格式（可选字段）</strong>：</p>
+                    <code class="bg-green-100 px-2 py-1 rounded block">商品名称,公司名称,售价,库存,SKU,分类,描述</code>
                     
                     <p class="mt-3 text-sm">💡 系统会自动检测您的CSV格式并智能补全缺失字段</p>
+                    
+                    <div class="mt-4 p-3 bg-white border border-green-200 rounded">
+                        <p class="text-sm font-medium text-green-800 mb-2">📝 示例数据：</p>
+                        <pre class="text-xs text-green-700 overflow-x-auto">商品名称,公司名称,售价,库存
+USB Type-C 连接器,苹果公司,15.99,100
+HDMI 高清连接器,三星电子,25.50,50
+以太网连接器,华为技术,8.88,200</pre>
+                    </div>
                 </div>
             </div>
 

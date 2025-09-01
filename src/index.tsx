@@ -996,15 +996,38 @@ app.post('/api/products/import-csv', async (c) => {
     const headers = lines[0].split(',').map(h => h.trim());
     const products: Product[] = [];
     
-    // 验证必须的列是否存在
+    // 定义中文标题到英文字段的映射
+    const fieldMapping: Record<string, string> = {
+      // 中文标题映射
+      '商品名称': 'name',
+      '公司名称': 'company_name', 
+      '售价': 'price',
+      '库存': 'stock',
+      '分类': 'category',
+      '描述': 'description',
+      'SKU': 'sku',
+      // 英文标题（保持兼容性）
+      'name': 'name',
+      'company_name': 'company_name',
+      'price': 'price', 
+      'stock': 'stock',
+      'category': 'category',
+      'description': 'description',
+      'sku': 'sku'
+    };
+    
+    // 将原始标题映射到标准字段
+    const mappedHeaders = headers.map(header => fieldMapping[header] || header);
+    
+    // 验证必须的列是否存在（检查映射后的字段）
     const requiredFields = ['name', 'company_name', 'price', 'stock'];
-    for (const field of requiredFields) {
-      if (!headers.includes(field)) {
-        return c.json({ 
-          success: false, 
-          error: `CSV文件缺少必须的列: ${field}。需要包含: ${requiredFields.join(', ')}` 
-        }, 400);
-      }
+    const missingFields = requiredFields.filter(field => !mappedHeaders.includes(field));
+    
+    if (missingFields.length > 0) {
+      return c.json({ 
+        success: false, 
+        error: `CSV文件缺少必须的列: ${missingFields.join(', ')}。支持的标题格式: 商品名称,公司名称,售价,库存 或 name,company_name,price,stock` 
+      }, 400);
     }
     
     // 解析数据行
@@ -1012,15 +1035,25 @@ app.post('/api/products/import-csv', async (c) => {
       const values = lines[i].split(',');
       const product: any = {};
       
-      // 映射数据到对应字段
-      headers.forEach((header, index) => {
+      // 映射数据到对应字段（使用映射后的标准字段名）
+      headers.forEach((originalHeader, index) => {
+        const mappedField = fieldMapping[originalHeader.trim()] || originalHeader.trim();
         const value = values[index]?.trim() || '';
-        if (header === 'price') {
-          product[header] = parseFloat(value) || 0;
-        } else if (header === 'stock') {
-          product[header] = parseInt(value) || 0;
-        } else {
-          product[header] = value;
+        
+        if (mappedField === 'price' || mappedField === '售价') {
+          product['price'] = parseFloat(value) || 0;
+        } else if (mappedField === 'stock' || mappedField === '库存') {
+          product['stock'] = parseInt(value) || 0;
+        } else if (mappedField) {
+          // 使用标准字段名存储数据
+          const standardField = mappedField === '商品名称' ? 'name' :
+                               mappedField === '公司名称' ? 'company_name' :
+                               mappedField === '售价' ? 'price' :
+                               mappedField === '库存' ? 'stock' :
+                               mappedField === '分类' ? 'category' :
+                               mappedField === '描述' ? 'description' :
+                               mappedField === 'SKU' ? 'sku' : mappedField;
+          product[standardField] = value;
         }
       });
       
