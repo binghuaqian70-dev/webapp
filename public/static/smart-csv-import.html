@@ -328,11 +328,21 @@ HDMI 高清连接器,三星电子,25.50,50
             log('🔍 正在生成处理预览...');
             
             const csvContent = await selectedFile.text();
+            
+            // 重新解析数据以确保应用最新的字段映射
+            const currentParsedData = parseCSV(csvContent);
+            
+            if (currentParsedData.length === 0) {
+                log('❌ CSV文件为空或格式错误');
+                return;
+            }
+            
+            // 获取原始标题用于显示
             const lines = csvContent.trim().replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
             const originalHeaders = lines[0].split(',').map(h => h.trim());
             
-            // 映射原始标题到英文字段
-            const mappedHeaders = originalHeaders.map(header => fieldMapping[header] || header);
+            // 获取映射后的字段
+            const mappedHeaders = Object.keys(currentParsedData[0]);
             
             // 检查字段完整性
             const requiredFields = ['name', 'company_name', 'price', 'stock'];
@@ -358,9 +368,6 @@ HDMI 高清连接器,三星电子,25.50,50
                 previewHtml += `<p class="text-sm text-blue-600">🔧 将自动添加: ${willAddFields.join(', ')}</p>`;
             }
             previewHtml += '</div>';
-            
-            // 重新解析数据以确保应用最新的字段映射
-            const currentParsedData = parseCSV(csvContent);
             
             // 示例处理结果
             if (currentParsedData.length > 0 && missingFields.length === 0) {
