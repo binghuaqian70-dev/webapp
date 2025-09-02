@@ -973,7 +973,7 @@ app.post('/api/products/batch', async (c) => {
       
       try {
         // 验证必填字段
-        if (!product.name || !product.company_name || !product.price || product.stock === undefined) {
+        if (!product.name || !product.company_name || product.price === undefined || product.stock === undefined) {
           errors.push(`第${i + 1}行: 商品名称、公司名称、价格和库存为必填字段`);
           errorCount++;
           continue;

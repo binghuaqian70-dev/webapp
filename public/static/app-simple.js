@@ -1,5 +1,40 @@
 // 产品管理系统 - 前端JavaScript
 
+// 价格格式化函数 - 支持小数点后6位
+function formatPrice(price) {
+    const num = parseFloat(price);
+    if (isNaN(num)) {
+        return '0.00';
+    }
+    
+    // 对于零值，显示标准格式
+    if (num === 0) {
+        return '0.00';
+    }
+    
+    // 使用toFixed(6)确保最多显示小数点后6位，然后去掉末尾的零
+    let formatted = num.toFixed(6);
+    
+    // 去掉末尾的零，但保留至少2位小数（除非小数部分全是零且只有整数）
+    formatted = formatted.replace(/(\.\d*?)0+$/, '$1');
+    
+    // 如果去掉零后小数点后没有数字，保留2位小数
+    if (formatted.endsWith('.')) {
+        formatted = formatted + '00';
+    } else if (formatted.includes('.')) {
+        // 确保至少有2位小数（对于常规价格显示）
+        const decimalPart = formatted.split('.')[1];
+        if (decimalPart.length === 1) {
+            formatted = formatted + '0';
+        }
+    } else {
+        // 纯整数，添加.00
+        formatted = formatted + '.00';
+    }
+    
+    return formatted;
+}
+
 // 全局状态
 window.appState = {
     currentPage: 'dashboard',
@@ -377,7 +412,7 @@ function renderDashboard() {
                     '</div>' +
                     '<div class="ml-4">' +
                         '<p class="text-sm text-gray-500">总价值</p>' +
-                        '<p class="text-2xl font-bold text-gray-800">¥' + (stats.totalValue ? stats.totalValue.toFixed(2) : '0.00') + '</p>' +
+                        '<p class="text-2xl font-bold text-gray-800">¥' + (stats.totalValue ? formatPrice(stats.totalValue) : '0.00') + '</p>' +
                     '</div>' +
                 '</div>' +
             '</div>' +
@@ -715,7 +750,7 @@ function renderProductTable(products) {
                 (product.description ? '<div class="text-sm text-gray-500">' + product.description + '</div>' : '') +
             '</td>' +
             '<td class="table-cell">' + (product.company_name || '') + '</td>' +
-            '<td class="table-cell">¥' + parseFloat(product.price || 0).toFixed(2) + '</td>' +
+            '<td class="table-cell">¥' + formatPrice(product.price || 0) + '</td>' +
             '<td class="table-cell">' +
                 '<span class="' + stockColor + '">' + (product.stock || 0) + '</span>' +
             '</td>' +
@@ -896,8 +931,8 @@ function showAddProduct(editId) {
                     '</div>' +
                     
                     '<div class="form-group">' +
-                        '<label class="form-label">售价 *</label>' +
-                        '<input type="number" id="price" class="form-input" step="0.01" min="0" required>' +
+                        '<label class="form-label">售价 * <small class="text-gray-500">(支持小数点后6位)</small></label>' +
+                        '<input type="number" id="price" class="form-input" step="0.000001" min="0" required placeholder="如: 123.456789 或 0.123456">' +
                     '</div>' +
                     
                     '<div class="form-group">' +

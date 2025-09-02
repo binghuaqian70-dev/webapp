@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * 优化的批量导入脚本 - 适配资源限制
- * 小批次、分阶段导入策略
+ * 优化的批量导入脚本 - 9.2汇总表文件导入版本 (part_044 到 part_100)
+ * 小批次、分阶段导入策略，动态读取文件记录数
  */
 
 import fs from 'fs';
@@ -12,10 +12,14 @@ const USERNAME = 'admin';
 const PASSWORD = 'admin123';
 const AI_DRIVE_PATH = '/mnt/aidrive';
 
-// 优化配置
-const BATCH_SIZE = 5;           // 每批处理5个文件
-const DELAY_BETWEEN_FILES = 2000; // 文件间延迟2秒
-const DELAY_BETWEEN_BATCHES = 10000; // 批次间延迟10秒
+// 导入范围配置
+const START_PART = 44;  // 开始 part 编号
+const END_PART = 100;   // 结束 part 编号
+
+// 优化配置 - 针对9.2汇总表文件调整
+const BATCH_SIZE = 3;           // 每批处理3个文件（生产环境更保守）
+const DELAY_BETWEEN_FILES = 3000; // 文件间延迟3秒
+const DELAY_BETWEEN_BATCHES = 15000; // 批次间延迟15秒
 const MAX_RETRIES = 3;          // 最大重试次数
 
 function delay(ms) {
@@ -84,20 +88,32 @@ async function getDbStats(token) {
   }
 }
 
-// 分割CSV内容为小块
-function splitCsvContent(csvContent, maxLines = 50) {
+// 分割CSV内容为小块 - 动态计算最佳块大小
+function splitCsvContent(csvContent, targetChunkSize = 50) {
   const lines = csvContent.split('\n').filter(line => line.trim());
   const header = lines[0];
   const dataLines = lines.slice(1);
   
+  // 动态计算块大小，基于文件大小
+  const totalLines = dataLines.length;
+  let chunkSize = targetChunkSize;
+  
+  // 如果文件很大（>1000行），使用更小的块
+  if (totalLines > 1000) {
+    chunkSize = 30;
+  } else if (totalLines > 500) {
+    chunkSize = 40;
+  }
+  
   const chunks = [];
-  for (let i = 0; i < dataLines.length; i += maxLines) {
-    const chunk = [header, ...dataLines.slice(i, i + maxLines)].join('\n');
+  for (let i = 0; i < dataLines.length; i += chunkSize) {
+    const chunk = [header, ...dataLines.slice(i, i + chunkSize)].join('\n');
     chunks.push({
       content: chunk,
       startLine: i + 1,
-      endLine: Math.min(i + maxLines, dataLines.length),
-      totalLines: maxLines
+      endLine: Math.min(i + chunkSize, dataLines.length),
+      totalLines: Math.min(chunkSize, dataLines.length - i),
+      actualLines: Math.min(chunkSize, dataLines.length - i)
     });
   }
   
@@ -160,6 +176,7 @@ async function importCsvFile(fileInfo, token, fileIndex, totalFiles) {
     console.log(`\n📁 [${fileIndex}/${totalFiles}] ${fileInfo.filename}`);
     console.log(`   公司: ${fileInfo.company}`);
     console.log(`   文件大小: ${formatFileSize(fileInfo.size)}`);
+    console.log(`   预估记录数: ${formatNumber(fileInfo.estimatedRecords)} 条`);
 
     // 获取导入前状态
     const statsBefore = await getDbStats(token);
@@ -167,7 +184,12 @@ async function importCsvFile(fileInfo, token, fileIndex, totalFiles) {
 
     // 读取并分割CSV内容
     const csvContent = fs.readFileSync(fileInfo.path, 'utf8');
-    const chunks = splitCsvContent(csvContent, 50); // 每块50行数据
+    const lines = csvContent.split('\n').filter(line => line.trim());
+    const actualRecords = lines.length - 1; // 减去头部行
+    
+    console.log(`   📊 实际记录数: ${formatNumber(actualRecords)} 条`);
+    
+    const chunks = splitCsvContent(csvContent); // 动态分块
     
     console.log(`   📦 分为 ${chunks.length} 个数据块`);
 
@@ -193,12 +215,12 @@ async function importCsvFile(fileInfo, token, fileIndex, totalFiles) {
 
       // 分块间短暂延迟
       if (i < chunks.length - 1) {
-        await delay(1000);
+        await delay(1500);
       }
     }
 
     // 获取导入后状态
-    await delay(2000); // 等待数据同步
+    await delay(3000); // 等待数据同步
     const statsAfter = await getDbStats(token);
     totalImported = statsAfter.total - statsBefore.total;
 
@@ -213,6 +235,8 @@ async function importCsvFile(fileInfo, token, fileIndex, totalFiles) {
       filename: fileInfo.filename,
       company: fileInfo.company,
       size: fileInfo.size,
+      estimatedRecords: fileInfo.estimatedRecords,
+      actualRecords,
       totalChunks: chunks.length,
       successChunks,
       failedChunks,
@@ -228,21 +252,53 @@ async function importCsvFile(fileInfo, token, fileIndex, totalFiles) {
       filename: fileInfo.filename,
       company: fileInfo.company,
       size: fileInfo.size,
+      estimatedRecords: fileInfo.estimatedRecords,
       error: error.message
     };
+  }
+}
+
+// 获取文件记录数的估算（基于文件大小）
+function estimateRecords(filePath, fileSize) {
+  try {
+    // 读取文件前几行来估算平均行大小
+    const content = fs.readFileSync(filePath, 'utf8');
+    const lines = content.split('\n');
+    
+    if (lines.length <= 1) return 0;
+    
+    // 实际计算记录数
+    const actualRecords = lines.filter(line => line.trim()).length - 1; // 减去头部行
+    return actualRecords;
+  } catch (error) {
+    // 如果读取失败，基于文件大小估算（平均每行约150字节）
+    return Math.floor(fileSize / 150);
   }
 }
 
 function getAiDriveFiles() {
   try {
     const files = fs.readdirSync(AI_DRIVE_PATH);
-    const csvFiles = files.filter(file => file.endsWith('.csv'));
-    
-    // 按文件名排序
-    csvFiles.sort((a, b) => {
-      if (a.includes('51连接器') && !b.includes('51连接器')) return -1;
-      if (!a.includes('51连接器') && b.includes('51连接器')) return 1;
+    // 只处理9.2汇总表文件，并过滤指定范围
+    const csvFiles = files.filter(file => {
+      if (!file.endsWith('.csv') || !file.includes('9.2汇总表')) {
+        return false;
+      }
       
+      // 提取 part 编号
+      const partMatch = file.match(/part_(\d+)/);
+      if (!partMatch) {
+        return false;
+      }
+      
+      const partNum = parseInt(partMatch[1]);
+      return partNum >= START_PART && partNum <= END_PART;
+    });
+    
+    console.log(`找到 ${csvFiles.length} 个9.2汇总表文件 (part_${START_PART.toString().padStart(3, '0')} 到 part_${END_PART.toString().padStart(3, '0')})`);
+    
+    // 按part编号排序
+    csvFiles.sort((a, b) => {
       const partA = a.match(/part_(\d+)/);
       const partB = b.match(/part_(\d+)/);
       
@@ -257,28 +313,27 @@ function getAiDriveFiles() {
       const filePath = path.join(AI_DRIVE_PATH, filename);
       const stats = fs.statSync(filePath);
       
-      let company = '未知公司';
-      if (filename.includes('51连接器')) {
-        company = '信都数字科技（上海）有限公司';
-      } else if (filename.includes('part_0')) {
-        const match = filename.match(/part_(\d+)/);
-        if (match) {
-          const partNum = parseInt(match[1]);
-          if (partNum >= 1 && partNum <= 89) {
-            company = '中山市荣御电子科技有限公司';
-          } else if (partNum === 90) {
-            company = '深圳市熙霖特电子有限公司';
-          } else if (partNum >= 91 && partNum <= 100) {
-            company = '中山市荣御电子科技有限公司';
-          }
+      // 9.2汇总表文件的公司映射
+      let company = '中山市荣御电子科技有限公司'; // 默认公司
+      const match = filename.match(/part_(\d+)/);
+      if (match) {
+        const partNum = parseInt(match[1]);
+        if (partNum === 90) {
+          company = '深圳市熙霖特电子有限公司';
+        } else {
+          company = '中山市荣御电子科技有限公司';
         }
       }
+      
+      // 估算记录数
+      const estimatedRecords = estimateRecords(filePath, stats.size);
       
       return {
         filename,
         path: filePath,
         size: stats.size,
-        company
+        company,
+        estimatedRecords
       };
     });
   } catch (error) {
@@ -288,10 +343,11 @@ function getAiDriveFiles() {
 }
 
 async function main() {
-  console.log('🚀 优化批量导入 - 资源限制适配版本');
+  console.log('🚀 9.2汇总表批量导入 - 范围导入版本');
   console.log(`📍 AI Drive: ${AI_DRIVE_PATH}`);
   console.log(`📍 生产环境: ${PRODUCTION_URL}`);
-  console.log(`⚙️ 配置: 每批${BATCH_SIZE}个文件, 每文件最大50行/块`);
+  console.log(`🎯 导入范围: part_${START_PART.toString().padStart(3, '0')} 到 part_${END_PART.toString().padStart(3, '0')} (${END_PART - START_PART + 1} 个文件)`);
+  console.log(`⚙️ 配置: 每批${BATCH_SIZE}个文件, 动态分块大小`);
 
   const startTime = Date.now();
 
@@ -304,9 +360,15 @@ async function main() {
     console.log(`📊 初始记录数: ${formatNumber(initialStats.total)}\n`);
 
     // 获取文件列表
-    console.log('📂 扫描CSV文件...');
+    console.log('📂 扫描9.2汇总表CSV文件...');
     const files = getAiDriveFiles();
-    console.log(`📋 找到 ${files.length} 个文件\n`);
+    console.log(`📋 找到 ${files.length} 个9.2汇总表文件`);
+    
+    // 显示文件概览
+    const totalEstimatedRecords = files.reduce((sum, f) => sum + f.estimatedRecords, 0);
+    const totalSize = files.reduce((sum, f) => sum + f.size, 0);
+    console.log(`📊 预估总记录数: ${formatNumber(totalEstimatedRecords)} 条`);
+    console.log(`📁 总文件大小: ${formatFileSize(totalSize)}\n`);
 
     if (files.length === 0) {
       console.log('⚠️ 未找到CSV文件');
@@ -356,14 +418,23 @@ async function main() {
     const totalImported = finalStats.total - initialStats.total;
 
     console.log('\n' + '='.repeat(80));
-    console.log('📊 优化批量导入完成总结');
+    console.log('📊 9.2汇总表批量导入完成总结');
     console.log('='.repeat(80));
     console.log(`✅ 成功导入: ${successCount}/${files.length} 个文件`);
     console.log(`❌ 失败文件: ${failureCount}/${files.length} 个文件`);
     console.log(`📈 总导入记录: ${formatNumber(totalImported)} 条`);
     console.log(`🗄️ 最终记录数: ${formatNumber(finalStats.total)} 条`);
     console.log(`⏱️ 总耗时: ${Math.floor(totalDuration / 60)}分${Math.floor(totalDuration % 60)}秒`);
-    console.log('\n🎉 优化导入完成！');
+    
+    // 显示详细成功率统计
+    const finalEstimatedRecords = results.reduce((sum, r) => sum + (r.estimatedRecords || 0), 0);
+    const finalActualRecords = results.reduce((sum, r) => sum + (r.actualRecords || 0), 0);
+    console.log(`📊 预估记录数: ${formatNumber(finalEstimatedRecords)} 条`);
+    console.log(`📊 实际记录数: ${formatNumber(finalActualRecords)} 条`);
+    if (finalActualRecords > 0) {
+      console.log(`📊 导入成功率: ${((totalImported / finalActualRecords) * 100).toFixed(2)}%`);
+    }
+    console.log('\n🎉 9.2汇总表导入完成！');
 
   } catch (error) {
     console.error('\n❌ 导入过程发生错误:', error.message);
