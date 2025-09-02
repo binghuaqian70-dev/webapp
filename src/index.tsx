@@ -826,7 +826,7 @@ app.post('/api/products', async (c) => {
     const product: Product = await c.req.json();
     
     // 验证必填字段
-    if (!product.name || !product.company_name || !product.price || product.stock === undefined) {
+    if (!product.name || !product.company_name || product.price === undefined || product.stock === undefined) {
       return c.json({ 
         success: false, 
         error: '商品名称、公司名称、价格和库存为必填字段' 
@@ -854,7 +854,7 @@ app.post('/api/products', async (c) => {
       product.stock,
       product.description || '',
       product.category || '',
-      product.sku || '',
+      product.sku || null,  // 使用null而不是空字符串，避免UNIQUE约束冲突
       product.status || 'active'
     ).run();
     
@@ -909,7 +909,7 @@ app.put('/api/products/:id', async (c) => {
       product.stock,
       product.description || '',
       product.category || '',
-      product.sku || '',
+      product.sku || null,
       id
     ).run();
     
@@ -1018,7 +1018,7 @@ app.post('/api/products/batch', async (c) => {
           product.stock,
           product.description || '',
           product.category || '',
-          product.sku || '',
+          product.sku || null,
           product.status || 'active'
         ).run();
         
@@ -1299,7 +1299,7 @@ app.post('/api/products/import-csv', async (c) => {
           product.stock,
           product.description || '',
           product.category || '',
-          product.sku || '',
+          product.sku || null,
           product.status || 'active'
         ).run();
         
