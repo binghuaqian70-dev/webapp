@@ -1063,7 +1063,25 @@ function loadProductForEdit(id) {
                 const product = data.data;
                 document.getElementById('productName').value = product.name || '';
                 document.getElementById('companyName').value = product.company_name || '';
-                document.getElementById('price').value = product.price !== undefined ? product.price.toString() : '';
+                // 确保价格精度保持6位小数，避免科学计数法
+                if (product.price !== undefined) {
+                    // 如果价格是数字，格式化为最多6位小数的字符串
+                    const priceValue = typeof product.price === 'number' ? product.price : parseFloat(product.price);
+                    if (!isNaN(priceValue)) {
+                        // 使用toFixed确保精度，然后移除末尾不必要的零
+                        let formattedPrice = priceValue.toFixed(6);
+                        // 移除末尾的零，但至少保留一位小数
+                        formattedPrice = formattedPrice.replace(/\.?0+$/, '');
+                        if (!formattedPrice.includes('.')) {
+                            formattedPrice += '.0';
+                        }
+                        document.getElementById('price').value = formattedPrice;
+                    } else {
+                        document.getElementById('price').value = '';
+                    }
+                } else {
+                    document.getElementById('price').value = '';
+                }
                 document.getElementById('stock').value = product.stock || '';
                 document.getElementById('category').value = product.category || '';
                 document.getElementById('sku').value = product.sku || '';

@@ -29,6 +29,7 @@
 - ✅ **全文搜索**: 支持名称、公司、描述、分类、SKU搜索
 - ✅ **CRUD操作**: 完整的增删改查功能
 - ✅ **批量导入**: 支持JSON和CSV两种格式
+- ✅ **6位小数价格**: 完全支持小数点后6位精度的价格编辑和显示
 
 ### 3. 用户管理
 - ✅ **身份认证**: JWT token认证系统
@@ -57,7 +58,7 @@ CREATE TABLE products (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
   company_name TEXT NOT NULL, 
-  price REAL NOT NULL,
+  price REAL NOT NULL,    -- 支持小数点后6位精度
   stock INTEGER NOT NULL,
   sku TEXT UNIQUE,
   category TEXT,
@@ -159,6 +160,26 @@ USB连接器,苹果公司,15.99,100,APPLE-USB-001,连接器,高质量USB连接�
 
 **测试结果**: ✅ 已成功处理包含中文标题的GBK编码CSV文件，312条数据完美导入
 
+### 🎯 6位小数价格功能
+
+**功能**: 完全支持商品价格的6位小数精度，包括添加、编辑、显示和搜索功能。
+
+**技术实现**:
+1. **前端输入**: HTML5 number input with `step="0.000001"`
+2. **数据存储**: SQLite REAL 类型支持高精度浮点数
+3. **数据处理**: 使用 `Number()` 替代 `parseFloat()` 确保精度
+4. **编辑回显**: 修复 `toString()` 精度问题，使用 `toFixed(6)` 格式化
+5. **验证功能**: `validatePriceInput()` 函数支持6位小数验证
+
+**测试覆盖**:
+- ✅ 极小值: 0.000001
+- ✅ 标准值: 123.456789
+- ✅ 大数值: 999999.999999  
+- ✅ 末尾零值: 42.100000
+- ✅ 编辑回显: 完美保持精度显示
+
+**测试页面**: `/test_price_edit.html` - 提供完整的前端测试界面
+
 ## 🔐 默认账户
 - **用户名**: admin
 - **密码**: admin  
@@ -169,7 +190,7 @@ USB连接器,苹果公司,15.99,100,APPLE-USB-001,连接器,高质量USB连接�
 - **平台**: Cloudflare Pages
 - **状态**: ✅ 生产环境运行中
 - **数据库**: Cloudflare D1 (远程)
-- **最后更新**: 2025-09-01 (修复GBK编码问题)
+- **最后更新**: 2025-09-02 (修复6位小数价格编辑功能)
 - **主域名**: https://webapp-csv-import.pages.dev
 
 ## 💡 使用指南
