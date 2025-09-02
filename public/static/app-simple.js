@@ -1,5 +1,20 @@
 // 产品管理系统 - 前端JavaScript
 
+// 价格输入验证函数
+function validatePriceInput(input) {
+    const value = input.value;
+    if (value) {
+        // 检查小数位数
+        const decimalPart = value.split('.')[1];
+        if (decimalPart && decimalPart.length > 6) {
+            // 截断到6位小数
+            const truncated = parseFloat(value).toFixed(6);
+            input.value = truncated;
+            showMessage('价格小数位数已自动调整为6位', 'warning');
+        }
+    }
+}
+
 // 价格格式化函数 - 支持小数点后6位
 function formatPrice(price) {
     const num = parseFloat(price);
@@ -932,7 +947,11 @@ function showAddProduct(editId) {
                     
                     '<div class="form-group">' +
                         '<label class="form-label">售价 * <small class="text-gray-500">(支持小数点后6位)</small></label>' +
-                        '<input type="number" id="price" class="form-input" step="0.000001" min="0" required placeholder="如: 123.456789 或 0.123456">' +
+                        '<input type="number" id="price" class="form-input" step="0.000001" min="0" required ' +
+                        'placeholder="如: 123.456789 或 0.123456" ' +
+                        'title="支持小数点后最多6位" ' +
+                        'onchange="validatePriceInput(this)" ' +
+                        'oninput="validatePriceInput(this)">' +
                     '</div>' +
                     
                     '<div class="form-group">' +
@@ -977,10 +996,18 @@ function submitProductForm(event, editId) {
     event.preventDefault();
     console.log('提交商品表单, editId:', editId);
     
+    const priceValue = document.getElementById('price').value;
+    const parsedPrice = priceValue ? Number(priceValue) : 0;
+    
+    console.log('💰 价格处理详情:');
+    console.log('  原始输入值:', priceValue);
+    console.log('  解析后数值:', parsedPrice);
+    console.log('  小数位数:', parsedPrice.toString().split('.')[1]?.length || 0);
+    
     const formData = {
         name: document.getElementById('productName').value,
         company_name: document.getElementById('companyName').value,
-        price: parseFloat(document.getElementById('price').value),
+        price: parsedPrice,
         stock: parseInt(document.getElementById('stock').value),
         category: document.getElementById('category').value,
         sku: document.getElementById('sku').value,
@@ -1036,7 +1063,7 @@ function loadProductForEdit(id) {
                 const product = data.data;
                 document.getElementById('productName').value = product.name || '';
                 document.getElementById('companyName').value = product.company_name || '';
-                document.getElementById('price').value = product.price || '';
+                document.getElementById('price').value = product.price !== undefined ? product.price.toString() : '';
                 document.getElementById('stock').value = product.stock || '';
                 document.getElementById('category').value = product.category || '';
                 document.getElementById('sku').value = product.sku || '';
