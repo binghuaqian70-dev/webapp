@@ -947,7 +947,7 @@ function showAddProduct(editId) {
                     
                     '<div class="form-group">' +
                         '<label class="form-label">售价 * <small class="text-gray-500">(支持小数点后6位)</small></label>' +
-                        '<input type="number" id="price" class="form-input" step="0.000001" min="0" required ' +
+                        '<input type="number" id="price" class="form-input" step="any" min="0" required ' +
                         'placeholder="如: 123.456789 或 0.123456" ' +
                         'title="支持小数点后最多6位" ' +
                         'onchange="validatePriceInput(this)" ' +

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>价格输入调试</title>
+    <style>
+        body { font-family: Arial; margin: 20px; }
+        .test { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        input { padding: 8px; margin: 5px; }
+        button { padding: 8px 15px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>价格输入调试页面</h1>
+    
+    <div class="test">
+        <h2>测试1: step="0.000001"</h2>
+        <input type="number" id="test1" step="0.000001" min="0" placeholder="123.456789">
+        <button onclick="check(1)">检查</button>
+        <div id="result1"></div>
+    </div>
+    
+    <div class="test">
+        <h2>测试2: step="any"</h2>
+        <input type="number" id="test2" step="any" min="0" placeholder="123.456789">
+        <button onclick="check(2)">检查</button>
+        <div id="result2"></div>
+    </div>
+    
+    <div class="test">
+        <h2>测试3: 无step属性</h2>
+        <input type="number" id="test3" min="0" placeholder="123.456789">
+        <button onclick="check(3)">检查</button>
+        <div id="result3"></div>
+    </div>
+    
+    <script>
+        function check(n) {
+            const input = document.getElementById('test' + n);
+            const result = document.getElementById('result' + n);
+            const value = input.value;
+            
+            result.innerHTML = 
+                '<p>输入值: "' + value + '"</p>' +
+                '<p>checkValidity(): ' + input.checkValidity() + '</p>' +
+                '<p>validationMessage: "' + input.validationMessage + '"</p>' +
+                '<p>step: ' + input.step + '</p>' +
+                '<p>浮点数: ' + parseFloat(value) + '</p>';
+        }
+        
+        // 自动填入测试值
+        document.getElementById('test1').value = '123.456789';
+        document.getElementById('test2').value = '123.456789';
+        document.getElementById('test3').value = '123.456789';
+    </script>
+</body>
+</html>
