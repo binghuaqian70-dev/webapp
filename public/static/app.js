@@ -493,7 +493,7 @@ function showAddProduct(editId = null) {
                         
                         <div class="form-group">
                             <label class="form-label">售价 *</label>
-                            <input type="number" id="price" class="form-input" step="0.01" min="0" required>
+                            <input type="number" id="price" class="form-input" step="any" min="0" required>
                         </div>
                         
                         <div class="form-group">
