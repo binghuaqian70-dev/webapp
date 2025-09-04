@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * 优化的批量导入脚本 - 9.3数据汇总表导入版本 (part_001 到 part_100)
+ * 优化的批量导入脚本 - 9.4数据汇总表导入版本 (part_01 到 part_08)
  * 小批次、分阶段导入策略，支持6位小数价格精度
- * 支持AI Drive中100个分片文件的逐个导入
+ * 支持AI Drive中8个分片文件的逐个导入
  */
 
 import fs from 'fs';
@@ -13,17 +13,17 @@ const USERNAME = 'admin';
 const PASSWORD = 'admin123';
 const AI_DRIVE_PATH = '/mnt/aidrive';
 
-// 导入范围配置 - 9.3数据汇总表文件
-const START_PART = 1;   // 开始 part 编号 (001)
-const END_PART = 100;   // 结束 part 编号 (100)
+// 导入范围配置 - 9.4数据汇总表文件
+const START_PART = 1;   // 开始 part 编号 (01)
+const END_PART = 8;     // 结束 part 编号 (08)
 
-// 优化配置 - 针对9.3数据汇总表文件调整（100个文件，需要稳定导入）
-const BATCH_SIZE = 2;           // 每批处理2个文件（100个文件需要非常保守）
-const DELAY_BETWEEN_FILES = 4000; // 文件间延迟4秒
-const DELAY_BETWEEN_BATCHES = 20000; // 批次间延迟20秒（给服务器更多恢复时间）
-const MAX_RETRIES = 5;          // 最大重试次数（更多重试机会）
-const PROGRESS_SAVE_INTERVAL = 10; // 每10个文件保存一次进度
-const PROGRESS_FILE = './9_3_import_progress.json'; // 进度文件路径
+// 优化配置 - 针对9.4数据汇总表文件调整（8个文件，快速导入）
+const BATCH_SIZE = 2;           // 每批处理2个文件
+const DELAY_BETWEEN_FILES = 3000; // 文件间延迟3秒
+const DELAY_BETWEEN_BATCHES = 10000; // 批次间延迟10秒
+const MAX_RETRIES = 3;          // 最大重试次数
+const PROGRESS_SAVE_INTERVAL = 4; // 每4个文件保存一次进度
+const PROGRESS_FILE = './9_4_import_progress.json'; // 进度文件路径
 
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -123,21 +123,23 @@ async function getDbStats(token) {
   }
 }
 
-// 分割CSV内容为小块 - 动态计算最佳块大小
+// 分割CSV内容为小块 - 针对9.4数据优化的块大小
 function splitCsvContent(csvContent, targetChunkSize = 50) {
   const lines = csvContent.split('\n').filter(line => line.trim());
   const header = lines[0];
   const dataLines = lines.slice(1);
   
-  // 动态计算块大小，基于文件大小
+  // 针对9.4数据采用适中的块大小策略
   const totalLines = dataLines.length;
   let chunkSize = targetChunkSize;
   
-  // 如果文件很大（>1000行），使用更小的块
+  // 9.4数据文件相对较大，使用适中的块大小
   if (totalLines > 1000) {
-    chunkSize = 30;
+    chunkSize = 40; // 大文件使用中等块
   } else if (totalLines > 500) {
-    chunkSize = 40;
+    chunkSize = 50; // 中等文件
+  } else {
+    chunkSize = 60; // 小文件可以稍大
   }
   
   const chunks = [];
@@ -308,14 +310,14 @@ function estimateRecords(filePath, fileSize) {
 function getAiDriveFiles() {
   try {
     const files = fs.readdirSync(AI_DRIVE_PATH);
-    // 只处理9.3数据汇总表文件，格式: 9.3数据汇总表-utf8_part_XXX.csv
+    // 只处理9.4数据汇总表文件，格式: 9.4数据汇总表-utf8_part_XX.csv
     const csvFiles = files.filter(file => {
-      if (!file.endsWith('.csv') || !file.includes('9.3数据汇总表')) {
+      if (!file.endsWith('.csv') || !file.includes('9.4数据汇总表')) {
         return false;
       }
       
-      // 提取 part 编号，支持001-100格式
-      const partMatch = file.match(/part_(\d{3})/);
+      // 提取 part 编号，支持01-08格式
+      const partMatch = file.match(/part_(\d{2})/);
       if (!partMatch) {
         return false;
       }
@@ -324,12 +326,12 @@ function getAiDriveFiles() {
       return partNum >= START_PART && partNum <= END_PART;
     });
     
-    console.log(`找到 ${csvFiles.length} 个9.3数据汇总表文件 (part_${START_PART.toString().padStart(3, '0')} 到 part_${END_PART.toString().padStart(3, '0')})`);
+    console.log(`找到 ${csvFiles.length} 个9.4数据汇总表文件 (part_${START_PART.toString().padStart(2, '0')} 到 part_${END_PART.toString().padStart(2, '0')})`);
     
     // 按part编号排序
     csvFiles.sort((a, b) => {
-      const partA = a.match(/part_(\d{3})/);
-      const partB = b.match(/part_(\d{3})/);
+      const partA = a.match(/part_(\d{2})/);
+      const partB = b.match(/part_(\d{2})/);
       
       if (partA && partB) {
         return parseInt(partA[1]) - parseInt(partB[1]);
@@ -343,7 +345,7 @@ function getAiDriveFiles() {
       const stats = fs.statSync(filePath);
       
       // 从文件内容判断公司信息（根据实际数据结构）
-      let company = '富特世贸易（深圳）有限公司'; // 默认公司，根据文件内容确定
+      let company = '9.4数据汇总表'; // 9.4版本数据
       
       // 实际计算记录数（精确统计）
       const actualRecords = estimateRecords(filePath, stats.size);
@@ -363,13 +365,13 @@ function getAiDriveFiles() {
 }
 
 async function main() {
-  console.log('🚀 9.3数据汇总表批量导入 - 100文件完整导入');
+  console.log('🚀 9.4数据汇总表批量导入 - 8文件完整导入');
   console.log(`📍 AI Drive: ${AI_DRIVE_PATH}`);
   console.log(`📍 生产环境: ${PRODUCTION_URL}`);
-  console.log(`🎯 导入范围: part_${START_PART.toString().padStart(3, '0')} 到 part_${END_PART.toString().padStart(3, '0')} (${END_PART - START_PART + 1} 个文件)`);
-  console.log(`⚙️ 配置: 每批${BATCH_SIZE}个文件, 保守分块大小(20-30行), 支持6位小数价格`);
+  console.log(`🎯 导入范围: part_${START_PART.toString().padStart(2, '0')} 到 part_${END_PART.toString().padStart(2, '0')} (${END_PART - START_PART + 1} 个文件)`);
+  console.log(`⚙️ 配置: 每批${BATCH_SIZE}个文件, 适中分块大小(40-60行), 支持6位小数价格`);
   console.log(`⚙️ 延迟设置: 文件间${DELAY_BETWEEN_FILES/1000}秒, 批次间${DELAY_BETWEEN_BATCHES/1000}秒`);
-  console.log(`⚙️ 预估时间: 总计约${Math.ceil((100 * DELAY_BETWEEN_FILES + 50 * DELAY_BETWEEN_BATCHES) / 60000)}分钟`);
+  console.log(`⚙️ 预估时间: 总计约${Math.ceil((8 * DELAY_BETWEEN_FILES + 4 * DELAY_BETWEEN_BATCHES) / 60000)}分钟`);
 
   const startTime = Date.now();
 
@@ -382,9 +384,9 @@ async function main() {
     console.log(`📊 初始记录数: ${formatNumber(initialStats.total)}\n`);
 
     // 获取文件列表
-    console.log('📂 扫描9.3数据汇总表CSV文件...');
+    console.log('📂 扫描9.4数据汇总表CSV文件...');
     const files = getAiDriveFiles();
-    console.log(`📋 找到 ${files.length} 个9.3数据汇总表文件`);
+    console.log(`📋 找到 ${files.length} 个9.4数据汇总表文件`);
     
     // 显示文件详细信息
     console.log('\n📋 文件详细信息:');
@@ -404,18 +406,17 @@ async function main() {
     console.log(`🏢 涉及公司: ${[...new Set(files.map(f => f.company))].join(', ')}\n`);
 
     if (files.length === 0) {
-      console.log('⚠️ 未找到9.3数据汇总表CSV文件');
+      console.log('⚠️ 未找到9.4数据汇总表CSV文件');
       return;
     }
     
-    // 验证是否找到了完整的100个文件
-    if (files.length !== 100) {
-      console.log(`⚠️ 警告: 期望找到100个文件，实际找到${files.length}个文件`);
+    // 验证是否找到了完整的8个文件
+    if (files.length !== 8) {
+      console.log(`⚠️ 警告: 期望找到8个文件，实际找到${files.length}个文件`);
       
-      // 只显示前10个和后10个缺失文件，避免输出过多
       const missingFiles = [];
-      for (let i = 1; i <= 100; i++) {
-        const expectedFile = `9.3数据汇总表-utf8_part_${i.toString().padStart(3, '0')}.csv`;
+      for (let i = 1; i <= 8; i++) {
+        const expectedFile = `9.4数据汇总表-utf8_part_${i.toString().padStart(2, '0')}.csv`;
         const found = files.find(f => f.filename === expectedFile);
         if (!found) {
           missingFiles.push(expectedFile);
@@ -424,17 +425,9 @@ async function main() {
       
       if (missingFiles.length > 0) {
         console.log(`缺失的文件 (${missingFiles.length}个):`);
-        // 显示前10个缺失文件
-        for (let i = 0; i < Math.min(10, missingFiles.length); i++) {
-          console.log(`  ❌ ${missingFiles[i]}`);
-        }
-        // 如果超过10个，显示省略号和最后几个
-        if (missingFiles.length > 10) {
-          console.log(`  ... 还有 ${missingFiles.length - 10} 个缺失文件`);
-          for (let i = Math.max(10, missingFiles.length - 3); i < missingFiles.length; i++) {
-            console.log(`  ❌ ${missingFiles[i]}`);
-          }
-        }
+        missingFiles.forEach(file => {
+          console.log(`  ❌ ${file}`);
+        });
       }
     }
     
@@ -515,7 +508,7 @@ async function main() {
     const totalImported = finalStats.total - initialStats.total;
 
     console.log('\n' + '='.repeat(80));
-    console.log('📊 9.3数据汇总表批量导入完成总结');
+    console.log('📊 9.4数据汇总表批量导入完成总结');
     console.log('='.repeat(80));
     console.log(`✅ 成功导入: ${successCount}/${files.length} 个文件`);
     console.log(`❌ 失败文件: ${failureCount}/${files.length} 个文件`);
@@ -531,7 +524,7 @@ async function main() {
     if (finalActualRecords > 0) {
       console.log(`📊 导入成功率: ${((totalImported / finalActualRecords) * 100).toFixed(2)}%`);
     }
-    console.log('\n🎉 9.3数据汇总表导入完成！');
+    console.log('\n🎉 9.4数据汇总表导入完成！');
     
     // 清理进度文件
     clearProgress();

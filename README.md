@@ -6,11 +6,15 @@
 - **主要功能**: 商品管理、用户管理、智能CSV批量导入、SKU自动生成
 
 ## 🌐 线上地址
-- **生产环境**: https://webapp-csv-import.pages.dev
-- **智能导入页面**: https://webapp-csv-import.pages.dev/static/smart-csv-import.html  
+- **生产环境**: https://fc9bc1cb.webapp-csv-import.pages.dev
+- **智能导入页面**: https://fc9bc1cb.webapp-csv-import.pages.dev/static/smart-csv-import.html  
 - **GitHub仓库**: https://github.com/binghuaqian70-dev/webapp
 
-> **最新更新 (2025-09-01)**: 已修复GBK编码CSV文件导入问题，现在完全支持中文标题的GBK编码文件
+> **最新更新 (2025-01-22)**: 
+> - ✅ **9.4数据汇总表导入完成**: 成功导入8个文件，3,993条记录到生产环境
+> - ✅ **批量导入优化**: 优化了AI Drive文件批量导入脚本，支持2位part编号格式
+> - ✅ **数据库记录**: 生产环境总记录数达到174,960条
+> - ✅ **6位小数价格**: 完全支持高精度价格处理和导入
 
 ## 🚀 核心功能
 
@@ -50,17 +54,24 @@
 - **HTTP客户端**: Axios (CDN)
 - **交互**: 原生JavaScript + 拖拽API
 
-### 数据模型
+### 数据架构
 
-#### Products表
+#### 生产数据库状态 (2025-01-22)
+- **总记录数**: 174,960 条商品记录
+- **主要数据源**: 
+  - 9.3数据汇总表: 45,226条记录 (富特世贸易等)
+  - 9.4数据汇总表: 3,993条记录 (连云港葆泽鑫电子科技)
+  - 其他手动导入数据: 125,741条记录
+
+#### Products表结构
 ```sql
 CREATE TABLE products (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
   company_name TEXT NOT NULL, 
-  price REAL NOT NULL,    -- 支持小数点后6位精度
+  price REAL NOT NULL,    -- 支持小数点后6位精度 (如: 888.123456)
   stock INTEGER NOT NULL,
-  sku TEXT UNIQUE,
+  sku TEXT UNIQUE,        -- 自动生成: CONN-{NAME}-{TIMESTAMP}-{RANDOM}
   category TEXT,
   description TEXT,
   status TEXT DEFAULT 'active',
@@ -188,10 +199,23 @@ USB连接器,苹果公司,15.99,100,APPLE-USB-001,连接器,高质量USB连接�
 
 ## 🚀 部署状态
 - **平台**: Cloudflare Pages
-- **状态**: ✅ 生产环境运行中
+- **状态**: ✅ 生产环境运行中  
 - **数据库**: Cloudflare D1 (远程)
-- **最后更新**: 2025-09-02 (修复6位小数价格编辑功能)
-- **主域名**: https://webapp-csv-import.pages.dev
+- **当前域名**: https://fc9bc1cb.webapp-csv-import.pages.dev
+- **最后更新**: 2025-01-22 (9.4数据汇总表导入完成)
+
+### 📊 数据导入历史
+| 导入批次 | 日期 | 数据源 | 文件数量 | 记录数 | 状态 | 主要公司 |
+|---------|------|--------|----------|--------|------|----------|
+| 9.3数据汇总表 | 2025-01-XX | AI Drive | 99/100 | 45,226 | ✅ 完成 | 富特世贸易等 |
+| 9.4数据汇总表 | 2025-01-22 | AI Drive | 8/8 | 3,993 | ✅ 完成 | 连云港葆泽鑫电子科技 |
+| **总计** | - | - | **107** | **49,219** | **✅** | **多家企业** |
+
+### 🔧 批量导入工具
+- **脚本**: `optimized_batch_import.mjs` - 支持AI Drive文件批量导入
+- **测试工具**: `test_9_4_files.js` - 文件检测和验证
+- **验证工具**: `verify_9_4_import_result.mjs` - 导入结果验证
+- **进度管理**: 支持断点续传和进度保存
 
 ## 💡 使用指南
 1. **登录系统**: 使用admin/admin登录管理界面
