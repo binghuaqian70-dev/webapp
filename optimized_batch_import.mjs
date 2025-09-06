@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 优化的批量导入脚本 - 9.5数据汇总表导入版本 (part_01 到 part_60)
+ * 优化的批量导入脚本 - 9.6数据汇总表导入版本 (part_01 到 part_60)
  * 后台运行、进度统计、分阶段导入策略，支持6位小数价格精度
  * 支持AI Drive中60个分片文件的逐个导入，适合大规模数据处理
  * 特性：断点续传、详细日志、实时进度、批量优化
@@ -14,19 +14,19 @@ const USERNAME = 'admin';
 const PASSWORD = 'admin123';
 const AI_DRIVE_PATH = '/mnt/aidrive';
 
-// 导入范围配置 - 9.5数据汇总表文件 (大规模导入)
+// 导入范围配置 - 9.6数据汇总表文件 (大规模导入)
 const START_PART = 1;   // 开始 part 编号 (01)
 const END_PART = 60;    // 结束 part 编号 (60) - 总计60个文件
 
-// 优化配置 - 针对9.5数据汇总表大规模导入调整
+// 优化配置 - 针对9.6数据汇总表大规模导入调整
 const BATCH_SIZE = 3;           // 每批处理3个文件（适中批次）
 const DELAY_BETWEEN_FILES = 2000; // 文件间延迟2秒（加快处理）
 const DELAY_BETWEEN_BATCHES = 15000; // 批次间延迟15秒（服务器恢复）
 const MAX_RETRIES = 3;          // 最大重试次数
 const PROGRESS_SAVE_INTERVAL = 5; // 每5个文件保存一次进度
-const PROGRESS_FILE = './9_5_import_progress.json'; // 9.5进度文件路径
-const LOG_FILE = './9_5_import.log'; // 详细日志文件
-const STATS_FILE = './9_5_import_stats.json'; // 统计数据文件
+const PROGRESS_FILE = './9_6_import_progress.json'; // 9.6进度文件路径
+const LOG_FILE = './9_6_import.log'; // 详细日志文件
+const STATS_FILE = './9_6_import_stats.json'; // 统计数据文件
 
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -207,23 +207,23 @@ async function getDbStats(token) {
   }
 }
 
-// 分割CSV内容为小块 - 针对9.4数据优化的块大小
-function splitCsvContent(csvContent, targetChunkSize = 50) {
+// 分割CSV内容为小块 - 针对9.6数据优化的块大小
+function splitCsvContent(csvContent, targetChunkSize = 60) {
   const lines = csvContent.split('\n').filter(line => line.trim());
   const header = lines[0];
   const dataLines = lines.slice(1);
   
-  // 针对9.4数据采用适中的块大小策略
+  // 针对9.6数据采用优化的块大小策略
   const totalLines = dataLines.length;
   let chunkSize = targetChunkSize;
   
-  // 9.4数据文件相对较大，使用适中的块大小
+  // 9.6数据文件根据大小动态调整块大小
   if (totalLines > 1000) {
-    chunkSize = 40; // 大文件使用中等块
+    chunkSize = 60; // 大文件使用较大块提高效率
   } else if (totalLines > 500) {
-    chunkSize = 50; // 中等文件
+    chunkSize = 80; // 中等文件
   } else {
-    chunkSize = 60; // 小文件可以稍大
+    chunkSize = 100; // 小文件可以更大块
   }
   
   const chunks = [];
@@ -382,12 +382,12 @@ async function importCsvFile(fileInfo, token, fileIndex, totalFiles) {
 // 获取文件记录数的估算（基于文件大小）
 function estimateRecords(filePath, fileSize) {
   try {
-    // 对于AI Drive的文件，首次扫描时使用保守的基于大小估算，避免大量文件访问
-    // 基于9.3数据文件的平均行大小约130字节估算
-    return Math.floor(fileSize / 130);
+    // 对于AI Drive的文件，首次扫描时使用基于大小估算，避免大量文件访问
+    // 基于9.6数据文件的平均行大小约120字节估算（更紧凑）
+    return Math.floor(fileSize / 120);
   } catch (error) {
     console.warn(`⚠️ 估算文件记录数失败: ${filePath}, 使用默认估算`);
-    return Math.floor(fileSize / 150);
+    return Math.floor(fileSize / 140);
   }
 }
 
@@ -396,9 +396,9 @@ function getAiDriveFiles() {
     const files = fs.readdirSync(AI_DRIVE_PATH);
     log(`🔍 扫描AI Drive，找到 ${files.length} 个文件`);
     
-    // 只处理9.5数据汇总表文件，格式: 9.5数据汇总表-utf8_part_XX.csv
+    // 只处理9.6数据汇总表文件，格式: 9.6数据汇总表-utf8_part_XX.csv
     const csvFiles = files.filter(file => {
-      if (!file.endsWith('.csv') || !file.includes('9.5数据汇总表')) {
+      if (!file.endsWith('.csv') || !file.includes('9.6数据汇总表')) {
         return false;
       }
       
@@ -412,7 +412,7 @@ function getAiDriveFiles() {
       return partNum >= START_PART && partNum <= END_PART;
     });
     
-    log(`📋 找到 ${csvFiles.length} 个9.5数据汇总表文件 (part_${START_PART.toString().padStart(2, '0')} 到 part_${END_PART.toString().padStart(2, '0')})`);
+    log(`📋 找到 ${csvFiles.length} 个9.6数据汇总表文件 (part_${START_PART.toString().padStart(2, '0')} 到 part_${END_PART.toString().padStart(2, '0')})`);
     
     // 按part编号排序
     csvFiles.sort((a, b) => {
@@ -431,7 +431,7 @@ function getAiDriveFiles() {
       const stats = fs.statSync(filePath);
       
       // 从文件内容判断公司信息
-      let company = '9.5数据汇总表'; // 9.5版本数据
+      let company = '9.6数据汇总表'; // 9.6版本数据
       
       // 实际计算记录数（精确统计）
       const actualRecords = estimateRecords(filePath, stats.size);
@@ -452,11 +452,11 @@ function getAiDriveFiles() {
 
 async function main() {
   // 初始化日志
-  log('🚀 9.5数据汇总表批量导入 - 大规模60文件导入系统启动');
+  log('🚀 9.6数据汇总表批量导入 - 大规模60文件导入系统启动');
   log(`📍 AI Drive: ${AI_DRIVE_PATH}`);
   log(`📍 生产环境: ${PRODUCTION_URL}`);
   log(`🎯 导入范围: part_${START_PART.toString().padStart(2, '0')} 到 part_${END_PART.toString().padStart(2, '0')} (${END_PART - START_PART + 1} 个文件)`);
-  log(`⚙️ 批量配置: 每批${BATCH_SIZE}个文件, 适中分块大小, 支持6位小数价格`);
+  log(`⚙️ 批量配置: 每批${BATCH_SIZE}个文件, 优化分块大小, 支持6位小数价格`);
   log(`⚙️ 延迟设置: 文件间${DELAY_BETWEEN_FILES/1000}秒, 批次间${DELAY_BETWEEN_BATCHES/1000}秒`);
   
   const estimatedTotalMinutes = Math.ceil((60 * DELAY_BETWEEN_FILES + 20 * DELAY_BETWEEN_BATCHES) / 60000);
@@ -479,11 +479,11 @@ async function main() {
     stats.totalRecords = initialStats.total;
 
     // 获取文件列表
-    log('📂 扫描9.5数据汇总表CSV文件...');
+    log('📂 扫描9.6数据汇总表CSV文件...');
     const files = getAiDriveFiles();
     
     if (files.length === 0) {
-      log('❌ 未找到9.5数据汇总表CSV文件', 'ERROR');
+      log('❌ 未找到9.6数据汇总表CSV文件', 'ERROR');
       return;
     }
     
@@ -511,7 +511,7 @@ async function main() {
       
       const missingFiles = [];
       for (let i = 1; i <= END_PART; i++) {
-        const expectedFile = `9.5数据汇总表-utf8_part_${i.toString().padStart(2, '0')}.csv`;
+        const expectedFile = `9.6数据汇总表-utf8_part_${i.toString().padStart(2, '0')}.csv`;
         const found = files.find(f => f.filename === expectedFile);
         if (!found) {
           missingFiles.push(i);
@@ -616,7 +616,7 @@ async function main() {
     saveStats(stats);
 
     log('\n' + '='.repeat(80));
-    log('🎉 9.5数据汇总表批量导入完成！');
+    log('🎉 9.6数据汇总表批量导入完成！');
     log('='.repeat(80));
     log(`✅ 成功导入: ${successCount}/${files.length} 个文件 (${(successCount/files.length*100).toFixed(1)}%)`);
     log(`❌ 失败文件: ${failureCount}/${files.length} 个文件`);
@@ -633,7 +633,7 @@ async function main() {
     log(`   导入成功率: ${finalActualRecords > 0 ? ((totalImported / finalActualRecords) * 100).toFixed(2) : 'N/A'}%`);
     log(`   平均处理速度: ${(finalActualRecords / totalDuration * 60).toFixed(0)} 条/分钟`);
     
-    log('\n🎊 9.5数据汇总表大规模导入任务圆满完成！');
+    log('\n🎊 9.6数据汇总表大规模导入任务圆满完成！');
     
     // 清理进度文件
     clearProgress();
