@@ -1,0 +1,11 @@
+{
+  "totalFiles": 100,
+  "processedFiles": 100,
+  "successFiles": 95,
+  "failedFiles": 5,
+  "totalRecords": 334455,
+  "importedRecords": 93527,
+  "startTime": "2025-09-08T03:47:05.163Z",
+  "endTime": "2025-09-08T06:31:46.048Z",
+  "estimatedTimeRemaining": 0
+}
