@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * 优化的批量导入脚本 - 9.7数据汇总表导入版本 (part_01 到 part_100)
+ * 优化的批量导入脚本 - 9.10数据汇总表导入版本 (part_01 到 part_20)
  * 后台运行、进度统计、分阶段导入策略，支持6位小数价格精度
- * 支持AI Drive中100个分片文件的逐个导入，适合大规模数据处理
- * 特性：断点续传、详细日志、实时进度、批量优化
+ * 支持AI Drive中20个分片文件的逐个导入，适合中等规模数据处理
+ * 特性：断点续传、详细日志、实时进度、按文件内容行数导入
  */
 
 import fs from 'fs';
@@ -14,19 +14,19 @@ const USERNAME = 'admin';
 const PASSWORD = 'admin123';
 const AI_DRIVE_PATH = '/mnt/aidrive';
 
-// 导入范围配置 - 9.7数据汇总表文件 (大规模导入)
+// 导入范围配置 - 9.10数据汇总表文件 (中等规模导入)
 const START_PART = 1;   // 开始 part 编号 (01)
-const END_PART = 100;   // 结束 part 编号 (100) - 总计100个文件
+const END_PART = 20;    // 结束 part 编号 (20) - 总计20个文件
 
-// 优化配置 - 针对9.7数据汇总表大规模导入调整
-const BATCH_SIZE = 4;           // 每批处理4个文件（适中批次，100个文件优化）
+// 优化配置 - 针对9.10数据汇总表中等规模导入调整
+const BATCH_SIZE = 3;           // 每批处理3个文件（适中批次，20个文件优化）
 const DELAY_BETWEEN_FILES = 1800; // 文件间延迟1.8秒（提升处理速度）
-const DELAY_BETWEEN_BATCHES = 12000; // 批次间延迟12秒（服务器恢复）
+const DELAY_BETWEEN_BATCHES = 10000; // 批次间延迟10秒（服务器恢复）
 const MAX_RETRIES = 3;          // 最大重试次数
 const PROGRESS_SAVE_INTERVAL = 5; // 每5个文件保存一次进度
-const PROGRESS_FILE = './9_7_import_progress.json'; // 9.7进度文件路径
-const LOG_FILE = './9_7_import.log'; // 详细日志文件
-const STATS_FILE = './9_7_import_stats.json'; // 统计数据文件
+const PROGRESS_FILE = './9_10_import_progress.json'; // 9.10进度文件路径
+const LOG_FILE = './9_10_import.log'; // 详细日志文件
+const STATS_FILE = './9_10_import_stats.json'; // 统计数据文件
 
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -66,7 +66,7 @@ function loadStats() {
     log(`⚠️ 统计数据加载失败: ${error.message}`, 'WARN');
   }
   return {
-    totalFiles: 100,
+    totalFiles: 20,
     processedFiles: 0,
     successFiles: 0,
     failedFiles: 0,
@@ -207,23 +207,25 @@ async function getDbStats(token) {
   }
 }
 
-// 分割CSV内容为小块 - 针对9.7数据优化的块大小
-function splitCsvContent(csvContent, targetChunkSize = 70) {
+// 分割CSV内容为小块 - 针对9.10数据优化的块大小
+function splitCsvContent(csvContent, targetChunkSize = 75) {
   const lines = csvContent.split('\n').filter(line => line.trim());
   const header = lines[0];
   const dataLines = lines.slice(1);
   
-  // 针对9.7数据采用优化的块大小策略
+  // 针对9.10数据采用优化的块大小策略，按实际行数处理
   const totalLines = dataLines.length;
   let chunkSize = targetChunkSize;
   
-  // 9.7数据文件根据大小动态调整块大小
-  if (totalLines > 1000) {
-    chunkSize = 70; // 大文件使用适中块提高效率
-  } else if (totalLines > 500) {
+  // 9.10数据文件根据实际行数动态调整块大小
+  if (totalLines > 2000) {
+    chunkSize = 75; // 大文件使用适中块提高效率
+  } else if (totalLines > 1000) {
     chunkSize = 90; // 中等文件
+  } else if (totalLines > 500) {
+    chunkSize = 120; // 较小文件可以更大块
   } else {
-    chunkSize = 120; // 小文件可以更大块
+    chunkSize = 180; // 小文件使用大块提高效率
   }
   
   const chunks = [];
@@ -383,8 +385,8 @@ async function importCsvFile(fileInfo, token, fileIndex, totalFiles) {
 function estimateRecords(filePath, fileSize) {
   try {
     // 对于AI Drive的文件，首次扫描时使用基于大小估算，避免大量文件访问
-    // 基于9.7数据文件的平均行大小约115字节估算（更精简）
-    return Math.floor(fileSize / 115);
+    // 基于9.10数据文件的平均行大小约118字节估算
+    return Math.floor(fileSize / 118);
   } catch (error) {
     console.warn(`⚠️ 估算文件记录数失败: ${filePath}, 使用默认估算`);
     return Math.floor(fileSize / 130);
@@ -396,14 +398,14 @@ function getAiDriveFiles() {
     const files = fs.readdirSync(AI_DRIVE_PATH);
     log(`🔍 扫描AI Drive，找到 ${files.length} 个文件`);
     
-    // 只处理9.7数据汇总表文件，格式: 9.7数据汇总表-utf8_part_XX.csv
+    // 只处理9.10数据汇总表文件，格式: 9.10数据汇总表-utf8_part_XX.csv
     const csvFiles = files.filter(file => {
-      if (!file.endsWith('.csv') || !file.includes('9.7数据汇总表')) {
+      if (!file.endsWith('.csv') || !file.includes('9.10数据汇总表')) {
         return false;
       }
       
-      // 提取 part 编号，支持01-100格式 (支持01-09的两位数和10-100的三位数)
-      const partMatch = file.match(/part_(\d{2,3})/);
+      // 提取 part 编号，支持01-20格式 (支持01-09的两位数和10-20的两位数)
+      const partMatch = file.match(/part_(\d{2})/);
       if (!partMatch) {
         return false;
       }
@@ -412,12 +414,12 @@ function getAiDriveFiles() {
       return partNum >= START_PART && partNum <= END_PART;
     });
     
-    log(`📋 找到 ${csvFiles.length} 个9.7数据汇总表文件 (part_${START_PART.toString().padStart(2, '0')} 到 part_${END_PART})`);
+    log(`📋 找到 ${csvFiles.length} 个9.10数据汇总表文件 (part_${START_PART.toString().padStart(2, '0')} 到 part_${END_PART.toString().padStart(2, '0')})`);;
     
     // 按part编号排序
     csvFiles.sort((a, b) => {
-      const partA = a.match(/part_(\d{2,3})/);
-      const partB = b.match(/part_(\d{2,3})/);
+      const partA = a.match(/part_(\d{2})/);
+      const partB = b.match(/part_(\d{2})/);
       
       if (partA && partB) {
         return parseInt(partA[1]) - parseInt(partB[1]);
@@ -431,7 +433,7 @@ function getAiDriveFiles() {
       const stats = fs.statSync(filePath);
       
       // 从文件内容判断公司信息
-      let company = '9.7数据汇总表'; // 9.7版本数据
+      let company = '9.10数据汇总表'; // 9.10版本数据
       
       // 实际计算记录数（精确统计）
       const actualRecords = estimateRecords(filePath, stats.size);
@@ -452,14 +454,14 @@ function getAiDriveFiles() {
 
 async function main() {
   // 初始化日志
-  log('🚀 9.7数据汇总表批量导入 - 大规模100文件导入系统启动');
+  log('🚀 9.10数据汇总表批量导入 - 中等规模20文件导入系统启动');
   log(`📍 AI Drive: ${AI_DRIVE_PATH}`);
   log(`📍 生产环境: ${PRODUCTION_URL}`);
-  log(`🎯 导入范围: part_${START_PART.toString().padStart(2, '0')} 到 part_${END_PART} (${END_PART - START_PART + 1} 个文件)`);
-  log(`⚙️ 批量配置: 每批${BATCH_SIZE}个文件, 优化分块大小, 支持6位小数价格`);
+  log(`🎯 导入范围: part_${START_PART.toString().padStart(2, '0')} 到 part_${END_PART.toString().padStart(2, '0')} (${END_PART - START_PART + 1} 个文件)`);
+  log(`⚙️ 批量配置: 每批${BATCH_SIZE}个文件, 按文件行数优化分块大小, 支持6位小数价格`);
   log(`⚙️ 延迟设置: 文件间${DELAY_BETWEEN_FILES/1000}秒, 批次间${DELAY_BETWEEN_BATCHES/1000}秒`);
   
-  const estimatedTotalMinutes = Math.ceil((100 * DELAY_BETWEEN_FILES + 25 * DELAY_BETWEEN_BATCHES) / 60000);
+  const estimatedTotalMinutes = Math.ceil((20 * DELAY_BETWEEN_FILES + 7 * DELAY_BETWEEN_BATCHES) / 60000);
   log(`⏱️ 预估总时长: ${Math.floor(estimatedTotalMinutes / 60)}小时${estimatedTotalMinutes % 60}分钟`);
   
   // 初始化统计数据
@@ -479,11 +481,11 @@ async function main() {
     stats.totalRecords = initialStats.total;
 
     // 获取文件列表
-    log('📂 扫描9.7数据汇总表CSV文件...');
+    log('📂 扫描9.10数据汇总表CSV文件...');
     const files = getAiDriveFiles();
     
     if (files.length === 0) {
-      log('❌ 未找到9.7数据汇总表CSV文件', 'ERROR');
+      log('❌ 未找到9.10数据汇总表CSV文件', 'ERROR');
       return;
     }
     
@@ -511,7 +513,7 @@ async function main() {
       
       const missingFiles = [];
       for (let i = 1; i <= END_PART; i++) {
-        const expectedFile = `9.7数据汇总表-utf8_part_${i <= 9 ? i.toString().padStart(2, '0') : i.toString()}.csv`;
+        const expectedFile = `9.10数据汇总表-utf8_part_${i.toString().padStart(2, '0')}.csv`;
         const found = files.find(f => f.filename === expectedFile);
         if (!found) {
           missingFiles.push(i);
@@ -519,7 +521,7 @@ async function main() {
       }
       
       if (missingFiles.length > 0) {
-        log(`❌ 缺失的part编号: ${missingFiles.slice(0, 15).join(', ')}${missingFiles.length > 15 ? '...' : ''}`, 'WARN');
+        log(`❌ 缺失的part编号: ${missingFiles.join(', ')}`, 'WARN');
       }
     }
     
@@ -616,7 +618,7 @@ async function main() {
     saveStats(stats);
 
     log('\n' + '='.repeat(80));
-    log('🎉 9.7数据汇总表批量导入完成！');
+    log('🎉 9.10数据汇总表批量导入完成！');
     log('='.repeat(80));
     log(`✅ 成功导入: ${successCount}/${files.length} 个文件 (${(successCount/files.length*100).toFixed(1)}%)`);
     log(`❌ 失败文件: ${failureCount}/${files.length} 个文件`);
@@ -633,7 +635,7 @@ async function main() {
     log(`   导入成功率: ${finalActualRecords > 0 ? ((totalImported / finalActualRecords) * 100).toFixed(2) : 'N/A'}%`);
     log(`   平均处理速度: ${(finalActualRecords / totalDuration * 60).toFixed(0)} 条/分钟`);
     
-    log('\n🎊 9.7数据汇总表大规模导入任务圆满完成！');
+    log('\n🎊 9.10数据汇总表导入任务圆满完成！');
     
     // 清理进度文件
     clearProgress();
