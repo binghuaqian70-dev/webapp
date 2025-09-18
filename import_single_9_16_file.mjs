@@ -8,7 +8,7 @@
 import fs from 'fs';
 import path from 'path';
 
-const PRODUCTION_URL = 'https://fc9bc1cb.webapp-csv-import.pages.dev';
+const PRODUCTION_URL = 'https://63005b7f.webapp-csv-import.pages.dev';
 const USERNAME = 'admin';
 const PASSWORD = 'admin123';
 const AI_DRIVE_PATH = '/mnt/aidrive';
@@ -130,13 +130,13 @@ async function importCsvChunk(filename, chunk, chunkIndex, totalChunks, token, r
   try {
     console.log(`   📦 处理块 ${chunkIndex + 1}/${totalChunks} (行${chunk.startLine}-${chunk.endLine}, ${chunk.actualLines}条记录)`);
 
-    const response = await fetch(`${PRODUCTION_URL}/api/products/batch-import`, {
+    const response = await fetch(`${PRODUCTION_URL}/api/products/import-csv`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'text/csv',
+        'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
-      body: chunk.content
+      body: JSON.stringify({ csvData: chunk.content })
     });
 
     if (!response.ok) {

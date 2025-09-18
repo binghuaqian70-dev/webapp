@@ -9,7 +9,7 @@
 import fs from 'fs';
 import path from 'path';
 
-const PRODUCTION_URL = 'https://fc9bc1cb.webapp-csv-import.pages.dev'; // 使用最新部署地址
+const PRODUCTION_URL = 'https://63005b7f.webapp-csv-import.pages.dev'; // 使用最新部署地址
 const USERNAME = 'admin';
 const PASSWORD = 'admin123';
 const AI_DRIVE_PATH = '/mnt/aidrive';
