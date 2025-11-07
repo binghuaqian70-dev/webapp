@@ -327,6 +327,7 @@ function renderProductTable(products) {
                         <th class="text-left">库存</th>
                         <th class="text-left">分类</th>
                         <th class="text-left">SKU</th>
+                        <th class="text-left">更新时间</th>
                         <th class="text-left">状态</th>
                         <th class="text-left">操作</th>
                     </tr>
@@ -349,6 +350,11 @@ function renderProductTable(products) {
                             </td>
                             <td class="table-cell">${product.category || '-'}</td>
                             <td class="table-cell">${product.sku || '-'}</td>
+                            <td class="table-cell">
+                                <div class="text-sm text-gray-600">
+                                    ${product.updated_at ? new Date(product.updated_at).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'}
+                                </div>
+                            </td>
                             <td class="table-cell">
                                 <span class="status-badge ${product.status === 'active' ? 'status-active' : 'status-inactive'}">
                                     ${product.status === 'active' ? '正常' : '停用'}

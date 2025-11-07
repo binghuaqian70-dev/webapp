@@ -50,6 +50,31 @@ function formatPrice(price) {
     return formatted;
 }
 
+// 格式化日期时间
+function formatDateTime(dateString) {
+    if (!dateString) {
+        return '-';
+    }
+    
+    try {
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) {
+            return '-';
+        }
+        
+        // 格式化为: YYYY/MM/DD HH:MM
+        return date.toLocaleString('zh-CN', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    } catch (e) {
+        return '-';
+    }
+}
+
 // 全局状态
 window.appState = {
     currentPage: 'dashboard',
@@ -750,6 +775,7 @@ function renderProductTable(products) {
                     '<th class="text-left">价格</th>' +
                     '<th class="text-left">库存</th>' +
                     '<th class="text-left">分类</th>' +
+                    '<th class="text-left">更新时间</th>' +
                     '<th class="text-left">操作</th>' +
                 '</tr>' +
             '</thead>' +
@@ -770,6 +796,11 @@ function renderProductTable(products) {
                 '<span class="' + stockColor + '">' + (product.stock || 0) + '</span>' +
             '</td>' +
             '<td class="table-cell">' + (product.category || '-') + '</td>' +
+            '<td class="table-cell">' +
+                '<div class="text-sm text-gray-600">' +
+                    (product.updated_at ? formatDateTime(product.updated_at) : '-') +
+                '</div>' +
+            '</td>' +
             '<td class="table-cell">' +
                 '<div class="flex space-x-2">' +
                     '<button onclick="editProduct(' + product.id + ')" class="btn-success" title="编辑">' +
