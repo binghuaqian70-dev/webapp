@@ -757,7 +757,7 @@ app.get('/api/products', async (c) => {
     }
     
     // 验证排序字段安全性
-    const allowedSortFields = ['id', 'name', 'company_name', 'price', 'stock', 'created_at'];
+    const allowedSortFields = ['id', 'name', 'company_name', 'price', 'stock', 'created_at', 'updated_at'];
     const safeSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'id';
     const safeSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
     

@@ -282,7 +282,7 @@ async function loadProducts(page = 1) {
         const params = new URLSearchParams({
             page: page,
             limit: 20,
-            sortBy: document.getElementById('sortBy')?.value || 'id',
+            sortBy: document.getElementById('sortBy')?.value || 'updated_at',
             sortOrder: document.getElementById('sortOrder')?.value || 'DESC',
             ...currentFilters
         });
@@ -465,7 +465,7 @@ function clearFilters() {
     document.getElementById('categoryFilter').value = '';
     document.getElementById('minPrice').value = '';
     document.getElementById('maxPrice').value = '';
-    document.getElementById('sortBy').value = 'id';
+    document.getElementById('sortBy').value = 'updated_at';
     document.getElementById('sortOrder').value = 'DESC';
     
     currentFilters = {};

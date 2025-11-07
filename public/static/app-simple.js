@@ -720,7 +720,7 @@ function loadProducts(page) {
     const params = new URLSearchParams({
         page: page,
         limit: 20,
-        sortBy: 'id',
+        sortBy: 'updated_at',
         sortOrder: 'DESC'
     });
     
