@@ -9,16 +9,16 @@ import path from 'path';
 
 const AI_DRIVE_PATH = '/mnt/aidrive';
 const TARGET_FILES = [
-  '11.11数据汇总表-utf8_part01.csv',
-  '11.11数据汇总表-utf8_part02.csv',
-  '11.11数据汇总表-utf8_part03.csv',
-  '11.11数据汇总表-utf8_part04.csv',
-  '11.11数据汇总表-utf8_part05.csv',
-  '11.11数据汇总表-utf8_part06.csv',
-  '11.11数据汇总表-utf8_part07.csv',
-  '11.11数据汇总表-utf8_part08.csv',
-  '11.11数据汇总表-utf8_part09.csv',
-  '11.11数据汇总表-utf8_part10.csv'
+  '11.11数据汇总表-part01.csv',
+  '11.11数据汇总表-part02.csv',
+  '11.11数据汇总表-part03.csv',
+  '11.11数据汇总表-part04.csv',
+  '11.11数据汇总表-part05.csv',
+  '11.11数据汇总表-part06.csv',
+  '11.11数据汇总表-part07.csv',
+  '11.11数据汇总表-part08.csv',
+  '11.11数据汇总表-part09.csv',
+  '11.11数据汇总表-part10.csv'
 ];
 
 const PROGRESS_FILE = './11_11_import_progress.json';

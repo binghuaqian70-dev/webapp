@@ -1,0 +1,91 @@
+{
+  "totalFiles": 8,
+  "processedFiles": 8,
+  "currentFile": "11.10数据汇总表_part_8.csv",
+  "totalRecords": 0,
+  "processedChunks": 40,
+  "totalChunks": 40,
+  "importedRecords": 4295,
+  "startTime": "2025-11-10T13:34:07.673Z",
+  "endTime": "2025-11-10T13:45:19.119Z",
+  "status": "completed",
+  "fileResults": [
+    {
+      "filename": "11.10数据汇总表_part_1.csv",
+      "status": "completed",
+      "totalRecords": 537,
+      "importedRecords": 537,
+      "errorRecords": 0,
+      "chunks": 5,
+      "elapsedSeconds": 81
+    },
+    {
+      "filename": "11.10数据汇总表_part_2.csv",
+      "status": "completed",
+      "totalRecords": 537,
+      "importedRecords": 537,
+      "errorRecords": 0,
+      "chunks": 5,
+      "elapsedSeconds": 81
+    },
+    {
+      "filename": "11.10数据汇总表_part_3.csv",
+      "status": "completed",
+      "totalRecords": 537,
+      "importedRecords": 537,
+      "errorRecords": 0,
+      "chunks": 5,
+      "elapsedSeconds": 82
+    },
+    {
+      "filename": "11.10数据汇总表_part_4.csv",
+      "status": "completed",
+      "totalRecords": 537,
+      "importedRecords": 537,
+      "errorRecords": 0,
+      "chunks": 5,
+      "elapsedSeconds": 79
+    },
+    {
+      "filename": "11.10数据汇总表_part_5.csv",
+      "status": "completed",
+      "totalRecords": 537,
+      "importedRecords": 537,
+      "errorRecords": 0,
+      "chunks": 5,
+      "elapsedSeconds": 79
+    },
+    {
+      "filename": "11.10数据汇总表_part_6.csv",
+      "status": "completed",
+      "totalRecords": 537,
+      "importedRecords": 537,
+      "errorRecords": 0,
+      "chunks": 5,
+      "elapsedSeconds": 81
+    },
+    {
+      "filename": "11.10数据汇总表_part_7.csv",
+      "status": "completed",
+      "totalRecords": 537,
+      "importedRecords": 537,
+      "errorRecords": 0,
+      "chunks": 5,
+      "elapsedSeconds": 84
+    },
+    {
+      "filename": "11.10数据汇总表_part_8.csv",
+      "status": "completed",
+      "totalRecords": 536,
+      "importedRecords": 536,
+      "errorRecords": 0,
+      "chunks": 5,
+      "elapsedSeconds": 88
+    }
+  ],
+  "initialDbCount": 692714,
+  "estimatedTimeRemaining": 0,
+  "finalDbCount": 697009,
+  "actualImported": 4295,
+  "totalElapsedSeconds": 672
+}

@@ -1,0 +1,86 @@
+{
+  "totalFiles": 6,
+  "processedFiles": 6,
+  "currentFile": "10.28数据汇总表-utf8_part_01.csv",
+  "totalRecords": 3668,
+  "processedChunks": 0,
+  "totalChunks": 7,
+  "importedRecords": 3668,
+  "startTime": "2025-10-28T06:36:35.639Z",
+  "endTime": "2025-10-28T06:45:04.480Z",
+  "status": "completed",
+  "fileResults": [
+    {
+      "success": true,
+      "filename": "10.28数据汇总表-utf8_part_01.csv",
+      "size": 37813,
+      "actualRecords": 612,
+      "totalChunks": 7,
+      "successChunks": 7,
+      "failedChunks": 0,
+      "imported": 612,
+      "totalBefore": 675321,
+      "totalAfter": 675933
+    },
+    {
+      "success": true,
+      "filename": "10.28数据汇总表-utf8_part_02.csv",
+      "size": 37805,
+      "actualRecords": 612,
+      "totalChunks": 7,
+      "successChunks": 7,
+      "failedChunks": 0,
+      "imported": 612,
+      "totalBefore": 675933,
+      "totalAfter": 676545
+    },
+    {
+      "success": true,
+      "filename": "10.28数据汇总表-utf8_part_03.csv",
+      "size": 37679,
+      "actualRecords": 611,
+      "totalChunks": 7,
+      "successChunks": 7,
+      "failedChunks": 0,
+      "imported": 611,
+      "totalBefore": 676545,
+      "totalAfter": 677156
+    },
+    {
+      "success": true,
+      "filename": "10.28数据汇总表-utf8_part_04.csv",
+      "size": 37831,
+      "actualRecords": 611,
+      "totalChunks": 7,
+      "successChunks": 7,
+      "failedChunks": 0,
+      "imported": 611,
+      "totalBefore": 677156,
+      "totalAfter": 677767
+    },
+    {
+      "success": true,
+      "filename": "10.28数据汇总表-utf8_part_05.csv",
+      "size": 38000,
+      "actualRecords": 611,
+      "totalChunks": 7,
+      "successChunks": 7,
+      "failedChunks": 0,
+      "imported": 611,
+      "totalBefore": 677767,
+      "totalAfter": 678378
+    },
+    {
+      "success": true,
+      "filename": "10.28数据汇总表-utf8_part_06.csv",
+      "size": 37415,
+      "actualRecords": 611,
+      "totalChunks": 7,
+      "successChunks": 7,
+      "failedChunks": 0,
+      "imported": 611,
+      "totalBefore": 678378,
+      "totalAfter": 678989
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "totalFiles": 4,
+  "processedFiles": 4,
+  "currentFile": "",
+  "totalRecords": 2804,
+  "processedChunks": 0,
+  "totalChunks": 0,
+  "importedRecords": 3776,
+  "startTime": "2025-10-30T12:03:03.592Z",
+  "endTime": "2025-10-30T12:09:12.410Z",
+  "status": "completed",
+  "fileResults": [
+    {
+      "success": true,
+      "filename": "10.30数据汇总表-part1.csv",
+      "size": 41049,
+      "actualRecords": 701,
+      "totalChunks": 6,
+      "successChunks": 6,
+      "failedChunks": 0,
+      "imported": 1193,
+      "totalBefore": 678951,
+      "totalAfter": 680144
+    },
+    {
+      "success": true,
+      "filename": "10.30数据汇总表-part2.csv",
+      "size": 40864,
+      "actualRecords": 701,
+      "totalChunks": 6,
+      "successChunks": 6,
+      "failedChunks": 0,
+      "imported": 1181,
+      "totalBefore": 680160,
+      "totalAfter": 681341
+    },
+    {
+      "success": true,
+      "filename": "10.30数据汇总表-part3.csv",
+      "size": 40883,
+      "actualRecords": 701,
+      "totalChunks": 6,
+      "successChunks": 6,
+      "failedChunks": 0,
+      "imported": 701,
+      "totalBefore": 681341,
+      "totalAfter": 682042
+    },
+    {
+      "success": true,
+      "filename": "10.30数据汇总表-part4.csv",
+      "size": 41939,
+      "actualRecords": 701,
+      "totalChunks": 6,
+      "successChunks": 6,
+      "failedChunks": 0,
+      "imported": 701,
+      "totalBefore": 682042,
+      "totalAfter": 682743
+    }
+  ]
+}
