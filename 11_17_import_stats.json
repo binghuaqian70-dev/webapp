@@ -1,0 +1,43 @@
+{
+  "totalFiles": 3,
+  "processedFiles": 3,
+  "currentFile": "",
+  "totalRecords": 1514,
+  "processedChunks": 0,
+  "totalChunks": 0,
+  "importedRecords": 1010,
+  "startTime": "2025-11-17T08:47:47.922Z",
+  "endTime": "2025-11-17T08:50:17.786Z",
+  "status": "completed_with_errors",
+  "fileResults": [
+    {
+      "success": true,
+      "filename": "11.17数据汇总表-part01.csv",
+      "size": 29886,
+      "actualRecords": 505,
+      "totalChunks": 6,
+      "successChunks": 6,
+      "failedChunks": 0,
+      "imported": 505,
+      "totalBefore": 703380,
+      "totalAfter": 703885
+    },
+    {
+      "success": true,
+      "filename": "11.17数据汇总表-part02.csv",
+      "size": 29972,
+      "actualRecords": 505,
+      "totalChunks": 6,
+      "successChunks": 6,
+      "failedChunks": 0,
+      "imported": 505,
+      "totalBefore": 703885,
+      "totalAfter": 704390
+    },
+    {
+      "success": false,
+      "filename": "11.17数据汇总表-part03.csv",
+      "error": "ENOENT: no such file or directory, stat '/mnt/aidrive/11.17数据汇总表-part03.csv'"
+    }
+  ]
+}

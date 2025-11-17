@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * 优化的批量导入脚本 - 11.11数据汇总表导入版本 (多文件批量导入)
+ * 优化的批量导入脚本 - 11.17数据汇总表导入版本 (多文件批量导入)
  * 后台运行、进度统计、分阶段导入策略，支持6位小数价格精度
- * 支持AI Drive中11.11数据汇总表-utf8_part01.csv到part10.csv的10个分割文件批量导入
+ * 支持AI Drive中11.17数据汇总表-part01.csv到part03.csv的3个分割文件批量导入
  * 特性：逐个文件导入、断点续传、详细日志、实时进度、按文件内容行数智能分块
  */
 
@@ -13,28 +13,21 @@ const PRODUCTION_URL = 'https://webapp-csv-import.pages.dev'; // 生产环境地
 const USERNAME = 'admin';
 const PASSWORD = 'admin123';
 const AI_DRIVE_PATH = '/mnt/aidrive';
-const TARGET_FILE_PREFIX = '11.11数据汇总表-part';
+const TARGET_FILE_PREFIX = '11.17数据汇总表-part';
 const TARGET_FILES = [
-  '11.11数据汇总表-part01.csv',
-  '11.11数据汇总表-part02.csv',
-  '11.11数据汇总表-part03.csv',
-  '11.11数据汇总表-part04.csv',
-  '11.11数据汇总表-part05.csv',
-  '11.11数据汇总表-part06.csv',
-  '11.11数据汇总表-part07.csv',
-  '11.11数据汇总表-part08.csv',
-  '11.11数据汇总表-part09.csv',
-  '11.11数据汇总表-part10.csv'
+  '11.17数据汇总表-part01.csv',
+  '11.17数据汇总表-part02.csv',
+  '11.17数据汇总表-part03.csv'
 ];
 
-// 优化配置 - 针对11.11数据汇总表多文件批量导入调整（10个文件）
+// 优化配置 - 针对11.17数据汇总表多文件批量导入调整（3个文件）
 const MAX_RETRIES = 3;          // 最大重试次数
 const DELAY_BETWEEN_CHUNKS = 600; // 分块间延迟0.6秒
 const DELAY_BETWEEN_FILES = 2000;  // 文件间延迟2秒
 const PROGRESS_SAVE_INTERVAL = 3; // 每3个分块保存一次进度
-const PROGRESS_FILE = './11_11_import_progress.json'; // 11.11进度文件路径
-const LOG_FILE = './11_11_import.log'; // 详细日志文件
-const STATS_FILE = './11_11_import_stats.json'; // 统计数据文件
+const PROGRESS_FILE = './11_17_import_progress.json'; // 11.17进度文件路径
+const LOG_FILE = './11_17_import.log'; // 详细日志文件
+const STATS_FILE = './11_17_import_stats.json'; // 统计数据文件
 
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -233,25 +226,25 @@ async function getDbStats(token) {
   }
 }
 
-// 分割CSV内容为小块 - 针对11.11数据优化的块大小（10个文件批量处理）
+// 分割CSV内容为小块 - 针对11.17数据优化的块大小（3个文件批量处理）
 function splitCsvContent(csvContent, filename, targetChunkSize = 100) {
   const lines = csvContent.split('\n').filter(line => line.trim());
   const header = lines[0];
   const dataLines = lines.slice(1);
   
-  // 针对11.11数据采用优化的块大小策略（10个文件批量处理，智能分块提高效率）
+  // 针对11.17数据采用优化的块大小策略（3个文件批量处理，智能分块提高效率）
   const totalLines = dataLines.length;
   let chunkSize = targetChunkSize;
   
-  // 11.11数据为10个分割文件，根据文件大小使用智能块大小
+  // 11.17数据为3个分割文件，每个约500条记录，根据文件大小使用智能块大小
   if (totalLines > 800) {
     chunkSize = 100; // 大分割文件，使用较小块保持稳定
   } else if (totalLines > 400) {
-    chunkSize = 120; // 中等分割文件，使用中等块
+    chunkSize = 100; // 中等分割文件（500行左右），使用100行块
   } else if (totalLines > 200) {
-    chunkSize = 150; // 小分割文件，使用较大块
+    chunkSize = 120; // 小分割文件，使用较大块
   } else {
-    chunkSize = 200; // 超小分割文件，使用超大块
+    chunkSize = 150; // 超小分割文件，使用超大块
   }
   
   log(`📦 [${filename}] 智能分块策略: 总数据行${totalLines}行 → 每块${chunkSize}行`);  
@@ -606,10 +599,10 @@ function checkSingleFile(filename) {
 
 async function main() {
   // 初始化日志
-  log('🚀 11.11数据汇总表批量导入系统启动');
+  log('🚀 11.17数据汇总表批量导入系统启动');
   log(`📍 AI Drive: ${AI_DRIVE_PATH}`);
   log(`📍 生产环境: ${PRODUCTION_URL}`);
-  log(`🎯 目标文件: ${TARGET_FILES.length}个分割文件 (part01 - part10)`);
+  log(`🎯 目标文件: ${TARGET_FILES.length}个分割文件 (part01 - part03)`);
   log(`⚙️ 导入配置: 逐个文件导入, 智能分块大小, 支持6位小数价格, 断点续传`);
   
   const startTime = Date.now();
@@ -668,7 +661,7 @@ async function main() {
     const finalDbStats = await getDbStats(token);
     
     log('\n' + '='.repeat(80));
-    log('🎉 11.11数据汇总表批量导入完成！');
+    log('🎉 11.17数据汇总表批量导入完成！');
     log('='.repeat(80));
     
     // 汇总结果
@@ -707,7 +700,7 @@ async function main() {
     importStats.fileResults = results;
     saveStats(importStats);
     
-    log('\n🎊 11.11数据汇总表批量导入任务完成！');
+    log('\n🎊 11.17数据汇总表批量导入任务完成！');
     
     // 清理进度文件（仅全部成功时清理）
     if (successfulFiles === existingFiles.length) {
