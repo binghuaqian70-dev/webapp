@@ -26,10 +26,8 @@
     "DB_BATCH_SIZE": "1000",
     "CSV_BATCH_SIZE": "200",
     "PERFORMANCE_MODE": "high"
-  },
-
-  // Cron Triggers - 保持Worker热启动
-  "triggers": {
-    "crons": ["*/5 * * * *"]  // 每5分钟触发一次健康检查
   }
+
+  // 注意：Cloudflare Pages 不支持 Cron Triggers
+  // 需要使用外部服务（如 UptimeRobot, Cron-job.org）定期调用 /api/health
 }
