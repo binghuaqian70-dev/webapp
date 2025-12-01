@@ -724,6 +724,11 @@ function loadProducts(page) {
         sortOrder: 'DESC'
     });
     
+    // 优化：第1页跳过COUNT查询，加快首次加载速度
+    if (page === 1) {
+        params.append('skipCount', 'true');
+    }
+    
     // 添加搜索条件
     Object.keys(window.appState.currentFilters).forEach(function(key) {
         if (window.appState.currentFilters[key]) {
@@ -741,6 +746,12 @@ function loadProducts(page) {
                 window.appState.products = data.data;
                 renderProductTable(data.data);
                 renderPagination(data.pagination);
+                
+                // 如果total为-1，说明跳过了COUNT，异步加载总数
+                if (data.pagination.total === -1) {
+                    console.log('异步加载商品总数...');
+                    loadProductCount();
+                }
             } else {
                 showMessage('加载商品数据失败: ' + data.error, 'error');
             }
@@ -751,6 +762,39 @@ function loadProducts(page) {
         })
         .finally(function() {
             hideLoading();
+        });
+}
+
+// 异步加载商品总数（优化：延迟COUNT查询）
+function loadProductCount() {
+    const params = new URLSearchParams();
+    
+    // 添加相同的搜索条件
+    Object.keys(window.appState.currentFilters).forEach(function(key) {
+        if (window.appState.currentFilters[key]) {
+            params.append(key, window.appState.currentFilters[key]);
+        }
+    });
+    
+    makeAuthenticatedRequest('/api/products/count?' + params.toString())
+        .then(function(response) {
+            return response.json();
+        })
+        .then(function(data) {
+            if (data.success) {
+                console.log('商品总数加载成功:', data.total);
+                // 更新分页信息
+                const pagination = {
+                    page: window.appState.currentProductPage || 1,
+                    limit: 20,
+                    total: data.total,
+                    totalPages: Math.ceil(data.total / 20)
+                };
+                renderPagination(pagination);
+            }
+        })
+        .catch(function(error) {
+            console.error('加载商品总数失败:', error);
         });
 }
 
@@ -822,7 +866,15 @@ function renderProductTable(products) {
 function renderPagination(pagination) {
     const container = document.getElementById('pagination');
     
-    if (!pagination || pagination.totalPages <= 1) {
+    // 优化：如果total为-1（未计算），显示加载中提示
+    if (!pagination || pagination.total === -1) {
+        container.innerHTML = '<span class="px-4 py-2 text-sm text-gray-500">' +
+            '<i class="fas fa-spinner fa-spin mr-2"></i>正在计算总数...' +
+            '</span>';
+        return;
+    }
+    
+    if (pagination.totalPages <= 1) {
         container.innerHTML = '';
         return;
     }

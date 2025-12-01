@@ -86,6 +86,35 @@ const AUTH_CONFIG = {
 // 启用CORS
 app.use('/api/*', cors())
 
+// 健康检查端点（用于预热Worker和数据库连接）
+app.get('/api/health', async (c) => {
+  const { env } = c;
+  
+  try {
+    const startTime = Date.now();
+    
+    // 预热数据库连接
+    await env.DB.prepare('SELECT 1 as health').first();
+    
+    const responseTime = Date.now() - startTime;
+    
+    return c.json({ 
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      warm: true,
+      responseTime: `${responseTime}ms`,
+      database: 'connected'
+    });
+  } catch (error) {
+    console.error('Health check failed:', error);
+    return c.json({ 
+      status: 'error', 
+      warm: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    }, 500);
+  }
+});
+
 // JWT认证中间件
 const authMiddleware = async (c: any, next: any) => {
   // 跳过登录、注册和公共API
@@ -93,7 +122,8 @@ const authMiddleware = async (c: any, next: any) => {
   const publicPaths = [
     '/api/auth/login', 
     '/api/auth/register', 
-    '/api/search-fields', 
+    '/api/search-fields',
+    '/api/health',  // 健康检查端点（公开访问）
     '/',
     '/register.html'
   ];
@@ -695,6 +725,7 @@ app.get('/api/products', async (c) => {
   const minStock = c.req.query('minStock') || '';
   const sortBy = c.req.query('sortBy') || 'id';
   const sortOrder = c.req.query('sortOrder') || 'DESC';
+  const skipCount = c.req.query('skipCount') === 'true';  // 优化：跳过COUNT查询
   
   const offset = (page - 1) * limit;
   
@@ -773,10 +804,14 @@ app.get('/api/products', async (c) => {
     const safeSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'id';
     const safeSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
     
-    // 查询总数
-    const countQuery = `SELECT COUNT(*) as total FROM products ${whereClause}`;
-    const countResult = await env.DB.prepare(countQuery).bind(...params).first();
-    const total = countResult?.total || 0;
+    // 查询总数（优化：支持跳过COUNT以提升首次加载速度）
+    let total = -1;  // -1 表示未计算
+    
+    if (!skipCount) {
+      const countQuery = `SELECT COUNT(*) as total FROM products ${whereClause}`;
+      const countResult = await env.DB.prepare(countQuery).bind(...params).first();
+      total = countResult?.total || 0;
+    }
     
     // 查询商品数据
     const dataQuery = `
@@ -799,13 +834,98 @@ app.get('/api/products', async (c) => {
         page,
         limit,
         total,
-        totalPages: Math.ceil(total / limit)
+        totalPages: total === -1 ? -1 : Math.ceil(total / limit)  // -1 表示未计算
       }
     });
     
   } catch (error) {
     console.error('Query products error:', error);
     return c.json({ success: false, error: '查询商品失败' }, 500);
+  }
+});
+
+// 获取商品总数（异步COUNT查询优化）
+app.get('/api/products/count', async (c) => {
+  const { env } = c;
+  
+  const search = c.req.query('search') || '';
+  const company = c.req.query('company') || '';
+  const category = c.req.query('category') || '';
+  const minPrice = c.req.query('minPrice') || '';
+  const maxPrice = c.req.query('maxPrice') || '';
+  const minStock = c.req.query('minStock') || '';
+  
+  try {
+    let whereClause = "WHERE status = 'active'";
+    let params: any[] = [];
+    
+    // 构建与商品列表相同的WHERE条件
+    if (search) {
+      const searchField = c.req.query('searchField');
+      const searchFields = c.req.query('searchFields');
+      const searchPattern = `%${search}%`;
+      
+      if (searchField) {
+        const validFields = ['name', 'company_name', 'description', 'category', 'sku'];
+        if (validFields.includes(searchField)) {
+          whereClause += ` AND ${searchField} LIKE ?`;
+          params.push(searchPattern);
+        } else {
+          whereClause += " AND name LIKE ?";
+          params.push(searchPattern);
+        }
+      } else if (searchFields && searchFields !== 'all') {
+        const fields = searchFields.split(',').filter((f: string) => 
+          ['name', 'company_name', 'description', 'category', 'sku'].includes(f)
+        );
+        
+        if (fields.length > 0) {
+          whereClause += ` AND (${fields.map((f: string) => `${f} LIKE ?`).join(' OR ')})`;
+          fields.forEach(() => params.push(searchPattern));
+        }
+      } else {
+        whereClause += " AND (name LIKE ? OR company_name LIKE ? OR description LIKE ? OR category LIKE ? OR sku LIKE ?)";
+        params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
+      }
+    }
+    
+    if (company) {
+      whereClause += " AND company_name LIKE ?";
+      params.push(`%${company}%`);
+    }
+    
+    if (category) {
+      whereClause += " AND category LIKE ?";
+      params.push(`%${category}%`);
+    }
+    
+    if (minPrice) {
+      whereClause += " AND price >= ?";
+      params.push(parseFloat(minPrice));
+    }
+    
+    if (maxPrice) {
+      whereClause += " AND price <= ?";
+      params.push(parseFloat(maxPrice));
+    }
+    
+    if (minStock) {
+      whereClause += " AND stock >= ?";
+      params.push(parseInt(minStock));
+    }
+    
+    const countQuery = `SELECT COUNT(*) as total FROM products ${whereClause}`;
+    const countResult = await env.DB.prepare(countQuery).bind(...params).first();
+    const total = countResult?.total || 0;
+    
+    return c.json({
+      success: true,
+      total
+    });
+    
+  } catch (error) {
+    console.error('Count products error:', error);
+    return c.json({ success: false, error: '查询商品总数失败' }, 500);
   }
 });
 
@@ -1922,4 +2042,21 @@ app.get('/register', (c) => {
   `)
 })
 
-export default app
+// Scheduled handler for Cron Triggers (保持Worker热启动)
+export const scheduled = async (event: ScheduledEvent, env: Bindings, ctx: ExecutionContext) => {
+  try {
+    // 调用健康检查端点预热Worker和数据库连接
+    const url = 'https://webapp-csv-import.pages.dev/api/health';
+    const response = await fetch(url);
+    const data = await response.json();
+    
+    console.log(`[Cron] Health check at ${new Date().toISOString()}:`, data);
+  } catch (error) {
+    console.error('[Cron] Health check failed:', error);
+  }
+};
+
+export default {
+  fetch: app.fetch,
+  scheduled
+}
