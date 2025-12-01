@@ -779,19 +779,26 @@ async function handleFTS5Search(
       }
     }
     
-    // 1. FTS5 搜索获取 rowid（极快，0.01-0.02秒）
-    const ftsResults = await env.DB.prepare(`
-      SELECT rowid 
-      FROM products_fts 
-      WHERE products_fts MATCH ?
-      ORDER BY rank
+    // 🔧 修复：直接 JOIN 查询，避免 "too many SQL variables" 错误
+    const allowedSortFields = ['id', 'name', 'company_name', 'price', 'stock', 'created_at', 'updated_at'];
+    const safeSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'updated_at';
+    const safeSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+    
+    const ftsDataQuery = `
+      SELECT p.id, p.name, p.company_name, p.price, p.stock, p.description, 
+             p.category, p.sku, p.status, p.created_at, p.updated_at
+      FROM products_fts fts
+      JOIN products p ON fts.rowid = p.id
+      WHERE products_fts MATCH ? AND p.status = 'active'
+      ORDER BY p.${safeSortBy} ${safeSortOrder}
       LIMIT ? OFFSET ?
-    `).bind(ftsQuery, limit + 100, offset).all(); // 多取一些以应对可能的过滤
+    `;
     
-    const rowIds = ftsResults.results.map((r: any) => r.rowid);
+    const result = await env.DB.prepare(ftsDataQuery)
+      .bind(ftsQuery, limit, offset)
+      .all();
     
-    if (rowIds.length === 0) {
-      // 没有搜索结果
+    if (result.results.length === 0) {
       return c.json({
         success: true,
         data: [],
@@ -808,32 +815,14 @@ async function handleFTS5Search(
       });
     }
     
-    // 2. 根据 rowid 查询完整数据（快速，0.01-0.02秒）
-    const allowedSortFields = ['id', 'name', 'company_name', 'price', 'stock', 'created_at', 'updated_at'];
-    const safeSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'updated_at';
-    const safeSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
-    
-    const placeholders = rowIds.map(() => '?').join(',');
-    const dataQuery = `
-      SELECT id, name, company_name, price, stock, description, category, sku, status, 
-             created_at, updated_at
-      FROM products 
-      WHERE id IN (${placeholders}) AND status = 'active'
-      ORDER BY ${safeSortBy} ${safeSortOrder}
-      LIMIT ?
-    `;
-    
-    const result = await env.DB.prepare(dataQuery)
-      .bind(...rowIds, limit)
-      .all();
-    
-    // 3. 异步获取总数（如果需要）
+    // 2. 异步获取总数（如果需要）
     let total = -1;
     if (!skipCount) {
       const countResult = await env.DB.prepare(`
         SELECT COUNT(*) as total 
-        FROM products_fts 
-        WHERE products_fts MATCH ?
+        FROM products_fts fts
+        JOIN products p ON fts.rowid = p.id
+        WHERE products_fts MATCH ? AND p.status = 'active'
       `).bind(ftsQuery).first();
       total = countResult?.total || 0;
     }
@@ -850,7 +839,7 @@ async function handleFTS5Search(
       debug: {
         fts5: true,
         query: ftsQuery,
-        rowIds: rowIds.length
+        results: result.results.length
       }
     });
     
