@@ -1,0 +1,50 @@
+{
+  "totalFiles": 3,
+  "processedFiles": 3,
+  "currentFile": "",
+  "totalRecords": 1519,
+  "processedChunks": 0,
+  "totalChunks": 0,
+  "importedRecords": 1519,
+  "startTime": "2025-11-19T11:50:31.585Z",
+  "endTime": "2025-11-19T11:54:11.242Z",
+  "status": "completed",
+  "fileResults": [
+    {
+      "success": true,
+      "filename": "11.19数据汇总表-utf8_part_1.csv",
+      "size": 29582,
+      "actualRecords": 507,
+      "totalChunks": 6,
+      "successChunks": 6,
+      "failedChunks": 0,
+      "imported": 507,
+      "totalBefore": 704843,
+      "totalAfter": 705350
+    },
+    {
+      "success": true,
+      "filename": "11.19数据汇总表-utf8_part_2.csv",
+      "size": 29377,
+      "actualRecords": 506,
+      "totalChunks": 6,
+      "successChunks": 6,
+      "failedChunks": 0,
+      "imported": 506,
+      "totalBefore": 705350,
+      "totalAfter": 705856
+    },
+    {
+      "success": true,
+      "filename": "11.19数据汇总表-utf8_part_3.csv",
+      "size": 29450,
+      "actualRecords": 506,
+      "totalChunks": 6,
+      "successChunks": 6,
+      "failedChunks": 0,
+      "imported": 506,
+      "totalBefore": 705856,
+      "totalAfter": 706362
+    }
+  ]
+}

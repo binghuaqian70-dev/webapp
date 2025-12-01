@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * 优化的批量导入脚本 - 11.17数据汇总表导入版本 (多文件批量导入)
+ * 优化的批量导入脚本 - 11.27数据汇总表导入版本 (多文件批量导入)
  * 后台运行、进度统计、分阶段导入策略，支持6位小数价格精度
- * 支持AI Drive中11.17数据汇总表-part01.csv到part03.csv的3个分割文件批量导入
+ * 支持AI Drive中11.27数据汇总表-utf8_part1.csv到part8.csv的8个分割文件批量导入
  * 特性：逐个文件导入、断点续传、详细日志、实时进度、按文件内容行数智能分块
  */
 
@@ -13,21 +13,26 @@ const PRODUCTION_URL = 'https://webapp-csv-import.pages.dev'; // 生产环境地
 const USERNAME = 'admin';
 const PASSWORD = 'admin123';
 const AI_DRIVE_PATH = '/mnt/aidrive';
-const TARGET_FILE_PREFIX = '11.17数据汇总表-part';
+const TARGET_FILE_PREFIX = '11.27数据汇总表-utf8_part';
 const TARGET_FILES = [
-  '11.17数据汇总表-part01.csv',
-  '11.17数据汇总表-part02.csv',
-  '11.17数据汇总表-part03.csv'
+  '11.27数据汇总表-utf8_part1.csv',
+  '11.27数据汇总表-utf8_part2.csv',
+  '11.27数据汇总表-utf8_part3.csv',
+  '11.27数据汇总表-utf8_part4.csv',
+  '11.27数据汇总表-utf8_part5.csv',
+  '11.27数据汇总表-utf8_part6.csv',
+  '11.27数据汇总表-utf8_part7.csv',
+  '11.27数据汇总表-utf8_part8.csv'
 ];
 
-// 优化配置 - 针对11.17数据汇总表多文件批量导入调整（3个文件）
+// 优化配置 - 针对11.27数据汇总表多文件批量导入调整（8个文件）
 const MAX_RETRIES = 3;          // 最大重试次数
 const DELAY_BETWEEN_CHUNKS = 600; // 分块间延迟0.6秒
 const DELAY_BETWEEN_FILES = 2000;  // 文件间延迟2秒
 const PROGRESS_SAVE_INTERVAL = 3; // 每3个分块保存一次进度
-const PROGRESS_FILE = './11_17_import_progress.json'; // 11.17进度文件路径
-const LOG_FILE = './11_17_import.log'; // 详细日志文件
-const STATS_FILE = './11_17_import_stats.json'; // 统计数据文件
+const PROGRESS_FILE = './11_27_import_progress.json'; // 11.27进度文件路径
+const LOG_FILE = './11_27_import.log'; // 详细日志文件
+const STATS_FILE = './11_27_import_stats.json'; // 统计数据文件
 
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -226,21 +231,21 @@ async function getDbStats(token) {
   }
 }
 
-// 分割CSV内容为小块 - 针对11.17数据优化的块大小（3个文件批量处理）
+// 分割CSV内容为小块 - 针对11.27数据优化的块大小（8个文件批量处理）
 function splitCsvContent(csvContent, filename, targetChunkSize = 100) {
   const lines = csvContent.split('\n').filter(line => line.trim());
   const header = lines[0];
   const dataLines = lines.slice(1);
   
-  // 针对11.17数据采用优化的块大小策略（3个文件批量处理，智能分块提高效率）
+  // 针对11.27数据采用优化的块大小策略（8个文件批量处理，智能分块提高效率）
   const totalLines = dataLines.length;
   let chunkSize = targetChunkSize;
   
-  // 11.17数据为3个分割文件，每个约500条记录，根据文件大小使用智能块大小
+  // 11.27数据为8个分割文件，每个约584-588条记录，使用稳定的块大小策略
   if (totalLines > 800) {
     chunkSize = 100; // 大分割文件，使用较小块保持稳定
   } else if (totalLines > 400) {
-    chunkSize = 100; // 中等分割文件（500行左右），使用100行块
+    chunkSize = 100; // 中等分割文件（584-588行左右），使用100行块保证稳定性
   } else if (totalLines > 200) {
     chunkSize = 120; // 小分割文件，使用较大块
   } else {
@@ -515,11 +520,24 @@ function checkTargetFiles() {
   let totalRecords = 0;
   let totalSize = 0;
   
-  for (const targetFile of TARGET_FILES) {
+  log('🔍 开始检查文件（AI Drive访问较慢，请耐心等待...）');
+  
+  for (let i = 0; i < TARGET_FILES.length; i++) {
+    const targetFile = TARGET_FILES[i];
+    
+    // 每10个文件显示一次进度
+    if (i > 0 && i % 10 === 0) {
+      log(`   📊 已检查 ${i}/${TARGET_FILES.length} 个文件...`);
+    }
+    
     try {
       const filePath = path.join(AI_DRIVE_PATH, targetFile);
       
-      if (!fs.existsSync(filePath)) {
+      // AI Drive文件检查 - 使用statSync直接检查
+      let stats;
+      try {
+        stats = fs.statSync(filePath);
+      } catch (statError) {
         results.push({
           filename: targetFile,
           exists: false,
@@ -528,12 +546,16 @@ function checkTargetFiles() {
         continue;
       }
       
-      const stats = fs.statSync(filePath);
-      
-      // 读取文件内容获取实际行数
-      const content = fs.readFileSync(filePath, 'utf8');
-      const lines = content.split('\n').filter(line => line.trim());
-      const actualRecords = lines.length - 1; // 减去表头
+      // 读取文件内容获取实际行数（仅读取前几行来估算，提高速度）
+      let actualRecords = 0;
+      try {
+        const content = fs.readFileSync(filePath, 'utf8');
+        const lines = content.split('\n').filter(line => line.trim());
+        actualRecords = lines.length - 1; // 减去表头
+      } catch (readError) {
+        // 如果读取失败，使用文件大小估算（平均每行约60字节）
+        actualRecords = Math.floor(stats.size / 60) - 1;
+      }
       
       totalRecords += actualRecords;
       totalSize += stats.size;
@@ -554,6 +576,8 @@ function checkTargetFiles() {
       });
     }
   }
+  
+  log(`✅ 文件检查完成: ${TARGET_FILES.length}个文件`);
   
   const existingFiles = results.filter(r => r.exists);
   
@@ -599,10 +623,10 @@ function checkSingleFile(filename) {
 
 async function main() {
   // 初始化日志
-  log('🚀 11.17数据汇总表批量导入系统启动');
+  log('🚀 11.27数据汇总表批量导入系统启动');
   log(`📍 AI Drive: ${AI_DRIVE_PATH}`);
   log(`📍 生产环境: ${PRODUCTION_URL}`);
-  log(`🎯 目标文件: ${TARGET_FILES.length}个分割文件 (part01 - part03)`);
+  log(`🎯 目标文件: ${TARGET_FILES.length}个分割文件 (part1 - part8)`);
   log(`⚙️ 导入配置: 逐个文件导入, 智能分块大小, 支持6位小数价格, 断点续传`);
   
   const startTime = Date.now();
@@ -661,7 +685,7 @@ async function main() {
     const finalDbStats = await getDbStats(token);
     
     log('\n' + '='.repeat(80));
-    log('🎉 11.17数据汇总表批量导入完成！');
+    log('🎉 11.27数据汇总表批量导入完成！');
     log('='.repeat(80));
     
     // 汇总结果
@@ -700,7 +724,7 @@ async function main() {
     importStats.fileResults = results;
     saveStats(importStats);
     
-    log('\n🎊 11.17数据汇总表批量导入任务完成！');
+    log('\n🎊 11.27数据汇总表批量导入任务完成！');
     
     // 清理进度文件（仅全部成功时清理）
     if (successfulFiles === existingFiles.length) {

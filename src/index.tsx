@@ -704,16 +704,24 @@ app.get('/api/products', async (c) => {
     
     // 构建动态WHERE条件 - 支持多字段搜索
     if (search) {
-      // 获取搜索字段参数，默认搜索所有字段
-      const searchFields = c.req.query('searchFields') || 'all';
+      // 优先使用searchField(单字段), 回退到searchFields(多字段), 默认搜索name字段
+      const searchField = c.req.query('searchField');
+      const searchFields = c.req.query('searchFields');
       const searchPattern = `%${search}%`;
       
-      if (searchFields === 'all') {
-        // 搜索所有字段
-        whereClause += " AND (name LIKE ? OR company_name LIKE ? OR description LIKE ? OR category LIKE ? OR sku LIKE ?)";
-        params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
-      } else {
-        // 搜索指定字段
+      if (searchField) {
+        // 单字段搜索 (性能最优)
+        const validFields = ['name', 'company_name', 'description', 'category', 'sku'];
+        if (validFields.includes(searchField)) {
+          whereClause += ` AND ${searchField} LIKE ?`;
+          params.push(searchPattern);
+        } else {
+          // 无效字段,默认搜索name
+          whereClause += " AND name LIKE ?";
+          params.push(searchPattern);
+        }
+      } else if (searchFields && searchFields !== 'all') {
+        // 多字段搜索
         const fields = searchFields.split(',');
         const validFields = ['name', 'company_name', 'description', 'category', 'sku'];
         const fieldConditions = [];
@@ -728,6 +736,10 @@ app.get('/api/products', async (c) => {
         if (fieldConditions.length > 0) {
           whereClause += " AND (" + fieldConditions.join(' OR ') + ")";
         }
+      } else {
+        // searchFields='all' 或未指定: 搜索所有字段 (性能最差,不推荐)
+        whereClause += " AND (name LIKE ? OR company_name LIKE ? OR description LIKE ? OR category LIKE ? OR sku LIKE ?)";
+        params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
       }
     }
     

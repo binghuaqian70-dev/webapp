@@ -535,22 +535,22 @@ function showProducts() {
                     '<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">' +
                         '<label class="flex items-center space-x-2">' +
                             '<input type="checkbox" value="name" class="search-field-checkbox" checked>' +
-                            '<span class="text-sm">商品名称</span>' +
+                            '<span class="text-sm font-medium text-blue-600">商品名称</span>' +
                         '</label>' +
                         '<label class="flex items-center space-x-2">' +
-                            '<input type="checkbox" value="company_name" class="search-field-checkbox" checked>' +
+                            '<input type="checkbox" value="company_name" class="search-field-checkbox">' +
                             '<span class="text-sm">公司名称</span>' +
                         '</label>' +
                         '<label class="flex items-center space-x-2">' +
-                            '<input type="checkbox" value="description" class="search-field-checkbox" checked>' +
+                            '<input type="checkbox" value="description" class="search-field-checkbox">' +
                             '<span class="text-sm">商品描述</span>' +
                         '</label>' +
                         '<label class="flex items-center space-x-2">' +
-                            '<input type="checkbox" value="category" class="search-field-checkbox" checked>' +
+                            '<input type="checkbox" value="category" class="search-field-checkbox">' +
                             '<span class="text-sm">商品分类</span>' +
                         '</label>' +
                         '<label class="flex items-center space-x-2">' +
-                            '<input type="checkbox" value="sku" class="search-field-checkbox" checked>' +
+                            '<input type="checkbox" value="sku" class="search-field-checkbox">' +
                             '<span class="text-sm">商品编号</span>' +
                         '</label>' +
                     '</div>' +
@@ -872,10 +872,18 @@ function searchProducts() {
             selectedFields.push(checkbox.value);
         });
         
-        // 如果没有全选，则指定搜索字段
-        if (selectedFields.length > 0 && selectedFields.length < 5) {
+        // 优化: 根据选中字段数量使用不同参数
+        if (selectedFields.length === 0) {
+            // 没有选中任何字段,默认搜索商品名称
+            window.appState.currentFilters.searchField = 'name';
+        } else if (selectedFields.length === 1) {
+            // 只选中一个字段,使用searchField参数 (性能更好)
+            window.appState.currentFilters.searchField = selectedFields[0];
+        } else if (selectedFields.length < 5) {
+            // 选中多个字段但不是全部,使用searchFields参数
             window.appState.currentFilters.searchFields = selectedFields.join(',');
         }
+        // 如果选中全部5个字段,不传参数,使用后端默认的'all'
     }
     
     // 添加高级搜索条件

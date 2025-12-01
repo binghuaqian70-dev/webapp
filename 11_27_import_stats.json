@@ -1,0 +1,110 @@
+{
+  "totalFiles": 8,
+  "processedFiles": 8,
+  "currentFile": "",
+  "totalRecords": 4676,
+  "processedChunks": 0,
+  "totalChunks": 0,
+  "importedRecords": 4667,
+  "startTime": "2025-11-27T12:42:33.562Z",
+  "endTime": "2025-11-27T12:55:32.862Z",
+  "status": "completed",
+  "fileResults": [
+    {
+      "success": true,
+      "filename": "11.27数据汇总表-utf8_part1.csv",
+      "size": 35901,
+      "actualRecords": 584,
+      "totalChunks": 6,
+      "successChunks": 6,
+      "failedChunks": 0,
+      "imported": 584,
+      "totalBefore": 722794,
+      "totalAfter": 723378
+    },
+    {
+      "success": true,
+      "filename": "11.27数据汇总表-utf8_part2.csv",
+      "size": 35349,
+      "actualRecords": 584,
+      "totalChunks": 6,
+      "successChunks": 6,
+      "failedChunks": 0,
+      "imported": 584,
+      "totalBefore": 723378,
+      "totalAfter": 723962
+    },
+    {
+      "success": true,
+      "filename": "11.27数据汇总表-utf8_part3.csv",
+      "size": 35321,
+      "actualRecords": 584,
+      "totalChunks": 6,
+      "successChunks": 6,
+      "failedChunks": 0,
+      "imported": 584,
+      "totalBefore": 723962,
+      "totalAfter": 724546
+    },
+    {
+      "success": true,
+      "filename": "11.27数据汇总表-utf8_part4.csv",
+      "size": 35660,
+      "actualRecords": 584,
+      "totalChunks": 6,
+      "successChunks": 6,
+      "failedChunks": 0,
+      "imported": 584,
+      "totalBefore": 724546,
+      "totalAfter": 725130
+    },
+    {
+      "success": true,
+      "filename": "11.27数据汇总表-utf8_part5.csv",
+      "size": 36942,
+      "actualRecords": 584,
+      "totalChunks": 6,
+      "successChunks": 6,
+      "failedChunks": 0,
+      "imported": 584,
+      "totalBefore": 725130,
+      "totalAfter": 725714
+    },
+    {
+      "success": true,
+      "filename": "11.27数据汇总表-utf8_part6.csv",
+      "size": 40440,
+      "actualRecords": 584,
+      "totalChunks": 6,
+      "successChunks": 6,
+      "failedChunks": 0,
+      "imported": 584,
+      "totalBefore": 725714,
+      "totalAfter": 726298
+    },
+    {
+      "success": true,
+      "filename": "11.27数据汇总表-utf8_part7.csv",
+      "size": 35670,
+      "actualRecords": 584,
+      "totalChunks": 6,
+      "successChunks": 6,
+      "failedChunks": 0,
+      "imported": 584,
+      "totalBefore": 726298,
+      "totalAfter": 726882
+    },
+    {
+      "success": true,
+      "filename": "11.27数据汇总表-utf8_part8.csv",
+      "size": 32498,
+      "actualRecords": 588,
+      "totalChunks": 6,
+      "successChunks": 6,
+      "failedChunks": 0,
+      "imported": 579,
+      "totalBefore": 726882,
+      "totalAfter": 727461
+    }
+  ]
+}
