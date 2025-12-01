@@ -876,9 +876,9 @@ app.get('/api/products', async (c) => {
   const offset = (page - 1) * limit;
   
   try {
-    // 🚀 FTS5 优化：如果有搜索关键词且没有其他过滤条件，使用 FTS5
+    // 🚀 FTS5 优化：暂时禁用，使用智能匹配模式
     const searchField = c.req.query('searchField');
-    const useFTS5 = search && !company && !category && !minPrice && !maxPrice && !minStock;
+    const useFTS5 = false; // 临时禁用 FTS5
     
     if (useFTS5) {
       // ✅ 使用 FTS5 全文索引查询（10-20x 加速）
