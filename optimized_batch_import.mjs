@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * 优化的批量导入脚本 - 1.8数据汇总表导入版本 (多文件批量导入)
+ * 优化的批量导入脚本 - 4.8数据汇总表导入版本 (多文件批量导入)
  * 后台运行、进度统计、分阶段导入策略，支持6位小数价格精度
- * 支持AI Drive中1.8数据汇总表-utf8_part1.csv到part30.csv的30个分割文件批量导入
+ * 支持AI Drive中4.8数据汇总表-utf8_part01.csv到part14.csv的14个分割文件批量导入
  * 特性：逐个文件导入、断点续传、详细日志、实时进度、按文件内容行数智能分块
  */
 
@@ -13,49 +13,33 @@ const PRODUCTION_URL = 'https://webapp-csv-import.pages.dev'; // 生产环境地
 const USERNAME = 'admin';
 const PASSWORD = 'admin123';
 const AI_DRIVE_PATH = '/mnt/aidrive';
-const TARGET_FILE_PREFIX = '1.8数据汇总表-utf8_part';
-// 30个文件：1.8数据汇总表-utf8_part1.csv 到 1.8数据汇总表-utf8_part30.csv
+const TARGET_FILE_PREFIX = '4.8数据汇总表-utf8_part';
+// 14个文件：4.8数据汇总表-utf8_part01.csv 到 4.8数据汇总表-utf8_part14.csv
 const TARGET_FILES = [
-  '1.8数据汇总表-utf8_part1.csv',
-  '1.8数据汇总表-utf8_part2.csv',
-  '1.8数据汇总表-utf8_part3.csv',
-  '1.8数据汇总表-utf8_part4.csv',
-  '1.8数据汇总表-utf8_part5.csv',
-  '1.8数据汇总表-utf8_part6.csv',
-  '1.8数据汇总表-utf8_part7.csv',
-  '1.8数据汇总表-utf8_part8.csv',
-  '1.8数据汇总表-utf8_part9.csv',
-  '1.8数据汇总表-utf8_part10.csv',
-  '1.8数据汇总表-utf8_part11.csv',
-  '1.8数据汇总表-utf8_part12.csv',
-  '1.8数据汇总表-utf8_part13.csv',
-  '1.8数据汇总表-utf8_part14.csv',
-  '1.8数据汇总表-utf8_part15.csv',
-  '1.8数据汇总表-utf8_part16.csv',
-  '1.8数据汇总表-utf8_part17.csv',
-  '1.8数据汇总表-utf8_part18.csv',
-  '1.8数据汇总表-utf8_part19.csv',
-  '1.8数据汇总表-utf8_part20.csv',
-  '1.8数据汇总表-utf8_part21.csv',
-  '1.8数据汇总表-utf8_part22.csv',
-  '1.8数据汇总表-utf8_part23.csv',
-  '1.8数据汇总表-utf8_part24.csv',
-  '1.8数据汇总表-utf8_part25.csv',
-  '1.8数据汇总表-utf8_part26.csv',
-  '1.8数据汇总表-utf8_part27.csv',
-  '1.8数据汇总表-utf8_part28.csv',
-  '1.8数据汇总表-utf8_part29.csv',
-  '1.8数据汇总表-utf8_part30.csv'
+  '4.8数据汇总表-utf8_part01.csv',
+  '4.8数据汇总表-utf8_part02.csv',
+  '4.8数据汇总表-utf8_part03.csv',
+  '4.8数据汇总表-utf8_part04.csv',
+  '4.8数据汇总表-utf8_part05.csv',
+  '4.8数据汇总表-utf8_part06.csv',
+  '4.8数据汇总表-utf8_part07.csv',
+  '4.8数据汇总表-utf8_part08.csv',
+  '4.8数据汇总表-utf8_part09.csv',
+  '4.8数据汇总表-utf8_part10.csv',
+  '4.8数据汇总表-utf8_part11.csv',
+  '4.8数据汇总表-utf8_part12.csv',
+  '4.8数据汇总表-utf8_part13.csv',
+  '4.8数据汇总表-utf8_part14.csv'
 ];
 
-// 优化配置 - 针对1.8数据汇总表多文件批量导入调整（30个文件）
+// 优化配置 - 针对4.8数据汇总表多文件批量导入调整（14个文件）
 const MAX_RETRIES = 3;          // 最大重试次数
 const DELAY_BETWEEN_CHUNKS = 600; // 分块间延迟0.6秒
 const DELAY_BETWEEN_FILES = 2000;  // 文件间延迟2秒
 const PROGRESS_SAVE_INTERVAL = 3; // 每3个分块保存一次进度
-const PROGRESS_FILE = './1_8_import_progress.json'; // 1.8进度文件路径
-const LOG_FILE = './1_8_import.log'; // 详细日志文件
-const STATS_FILE = './1_8_import_stats.json'; // 统计数据文件
+const PROGRESS_FILE = './4_8_import_progress.json'; // 4.8进度文件路径
+const LOG_FILE = './4_8_import.log'; // 详细日志文件
+const STATS_FILE = './4_8_import_stats.json'; // 统计数据文件
 
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -254,17 +238,17 @@ async function getDbStats(token) {
   }
 }
 
-// 分割CSV内容为小块 - 针对1.8数据优化的块大小（30个文件批量处理）
+// 分割CSV内容为小块 - 针对1.15数据优化的块大小（20个文件批量处理）
 function splitCsvContent(csvContent, filename, targetChunkSize = 100) {
   const lines = csvContent.split('\n').filter(line => line.trim());
   const header = lines[0];
   const dataLines = lines.slice(1);
   
-  // 针对1.8数据采用优化的块大小策略（30个文件批量处理，根据实际行数智能分块）
+  // 针对1.15数据采用优化的块大小策略（20个文件批量处理，根据实际行数智能分块）
   const totalLines = dataLines.length;
   let chunkSize = targetChunkSize;
   
-  // 1.8数据为30个分割文件，根据实际行数动态调整块大小
+  // 1.15数据为20个分割文件，根据实际行数动态调整块大小
   if (totalLines > 100000) {
     chunkSize = 100; // 超大文件（>10万行），使用100行块保持稳定
   } else if (totalLines > 50000) {
@@ -648,10 +632,10 @@ function checkSingleFile(filename) {
 
 async function main() {
   // 初始化日志
-  log('🚀 1.8数据汇总表批量导入系统启动');
+  log('🚀 4.8数据汇总表批量导入系统启动');
   log(`📍 AI Drive: ${AI_DRIVE_PATH}`);
   log(`📍 生产环境: ${PRODUCTION_URL}`);
-  log(`🎯 目标文件: ${TARGET_FILES.length}个分割文件 (part1 - part30)`);
+  log(`🎯 目标文件: ${TARGET_FILES.length}个分割文件 (part01 - part14)`);
   log(`⚙️ 导入配置: 逐个文件导入, 智能分块大小, 支持6位小数价格, 断点续传`);
   
   const startTime = Date.now();
@@ -710,7 +694,7 @@ async function main() {
     const finalDbStats = await getDbStats(token);
     
     log('\n' + '='.repeat(80));
-    log('🎉 1.8数据汇总表批量导入完成！');
+    log('🎉 4.8数据汇总表批量导入完成！');
     log('='.repeat(80));
     
     // 汇总结果
@@ -749,7 +733,7 @@ async function main() {
     importStats.fileResults = results;
     saveStats(importStats);
     
-    log('\n🎊 1.8数据汇总表批量导入任务完成！');
+    log('\n🎊 4.8数据汇总表批量导入任务完成！');
     
     // 清理进度文件（仅全部成功时清理）
     if (successfulFiles === existingFiles.length) {
