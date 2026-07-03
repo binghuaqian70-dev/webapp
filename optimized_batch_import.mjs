@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * 优化的批量导入脚本 - 6.30数据汇总表导入版本 (多文件批量导入)
+ * 优化的批量导入脚本 - 7.3数据汇总表导入版本 (多文件批量导入)
  * 后台运行、进度统计、分阶段导入策略，支持6位小数价格精度
- * 支持AI Drive中6.30数据汇总表-utf8_part01.csv到part12.csv的12个分割文件批量导入
+ * 支持AI Drive中7.3数据汇总表-utf8_part01.csv到part20.csv的20个分割文件批量导入
  * 特性：逐个文件导入、断点续传、详细日志、实时进度、按文件内容行数智能分块
  */
 
@@ -13,21 +13,21 @@ const PRODUCTION_URL = 'https://webapp-csv-import.pages.dev'; // 生产环境地
 const USERNAME = 'admin';
 const PASSWORD = 'admin123';
 const AI_DRIVE_PATH = '/mnt/aidrive';
-const TARGET_FILE_PREFIX = '6.30数据汇总表-utf8_part';
-// 12个文件：6.30数据汇总表-utf8_part01.csv 到 6.30数据汇总表-utf8_part12.csv (注意：有前导零)
-const TARGET_FILES = Array.from({ length: 12 }, (_, i) => {
+const TARGET_FILE_PREFIX = '7.3数据汇总表-utf8_part';
+// 20个文件：7.3数据汇总表-utf8_part01.csv 到 7.3数据汇总表-utf8_part20.csv (注意：有前导零)
+const TARGET_FILES = Array.from({ length: 20 }, (_, i) => {
   const num = String(i + 1).padStart(2, '0');
-  return `6.30数据汇总表-utf8_part${num}.csv`;
+  return `7.3数据汇总表-utf8_part${num}.csv`;
 });
 
-// 优化配置 - 针对6.30数据汇总表多文件批量导入调整（12个文件）
+// 优化配置 - 针对7.3数据汇总表多文件批量导入调整（20个文件）
 const MAX_RETRIES = 3;          // 最大重试次数
 const DELAY_BETWEEN_CHUNKS = 600; // 分块间延迟0.6秒
 const DELAY_BETWEEN_FILES = 2000;  // 文件间延迟2秒
 const PROGRESS_SAVE_INTERVAL = 3; // 每3个分块保存一次进度
-const PROGRESS_FILE = './6_30_import_progress.json'; // 6.30进度文件路径
-const LOG_FILE = './6_30_import.log'; // 详细日志文件
-const STATS_FILE = './6_30_import_stats.json'; // 统计数据文件
+const PROGRESS_FILE = './7_3_import_progress.json'; // 7.3进度文件路径
+const LOG_FILE = './7_3_import.log'; // 详细日志文件
+const STATS_FILE = './7_3_import_stats.json'; // 统计数据文件
 
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -620,10 +620,10 @@ function checkSingleFile(filename) {
 
 async function main() {
   // 初始化日志
-  log('🚀 6.30数据汇总表批量导入系统启动');
+  log('🚀 7.3数据汇总表批量导入系统启动');
   log(`📍 AI Drive: ${AI_DRIVE_PATH}`);
   log(`📍 生产环境: ${PRODUCTION_URL}`);
-  log(`🎯 目标文件: ${TARGET_FILES.length}个分割文件 (part01 - part12)`);
+  log(`🎯 目标文件: ${TARGET_FILES.length}个分割文件 (part01 - part20)`);
   log(`⚙️ 导入配置: 逐个文件导入, 智能分块大小, 支持6位小数价格, 断点续传`);
   
   const startTime = Date.now();
@@ -682,7 +682,7 @@ async function main() {
     const finalDbStats = await getDbStats(token);
     
     log('\n' + '='.repeat(80));
-    log('🎉 6.30数据汇总表批量导入完成！');
+    log('🎉 7.3数据汇总表批量导入完成！');
     log('='.repeat(80));
     
     // 汇总结果
@@ -721,7 +721,7 @@ async function main() {
     importStats.fileResults = results;
     saveStats(importStats);
     
-    log('\n🎊 6.30数据汇总表批量导入任务完成！');
+    log('\n🎊 7.3数据汇总表批量导入任务完成！');
     
     // 清理进度文件（仅全部成功时清理）
     if (successfulFiles === existingFiles.length) {
