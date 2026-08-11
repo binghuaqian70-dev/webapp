@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * 优化的批量导入脚本 - 8.11数据汇总表导入版本 (多文件批量导入)
+ * 8.6数据汇总表批量导入脚本
  * 后台运行、进度统计、分阶段导入策略，支持6位小数价格精度
- * 支持AI Drive中8.11数据汇总表-utf8_part_1.csv到part_6.csv的6个分割文件批量导入
+ * 支持AI Drive中8.6数据汇总表-utf8_part_1.csv到part_16.csv的12个分割文件批量导入
  * 特性：逐个文件导入、断点续传、详细日志、实时进度、按文件内容行数智能分块
  */
 
@@ -13,21 +13,21 @@ const PRODUCTION_URL = 'https://webapp-csv-import.pages.dev'; // 生产环境地
 const USERNAME = 'admin';
 const PASSWORD = 'admin123';
 const AI_DRIVE_PATH = '/mnt/aidrive';
-const TARGET_FILE_PREFIX = '8.11数据汇总表-utf8_part_';
-// 6个文件：8.11数据汇总表-utf8_part_1.csv 到 8.11数据汇总表-utf8_part_6.csv (注意：无前导零，使用下划线)
-const TARGET_FILES = Array.from({ length: 6 }, (_, i) => {
+const TARGET_FILE_PREFIX = '8.6数据汇总表-utf8_part';
+// 12个文件：8.6数据汇总表-utf8_part_1.csv 到 8.6数据汇总表-utf8_part_16.csv
+const TARGET_FILES = Array.from({ length: 16 }, (_, i) => {
   const num = i + 1;
-  return `8.11数据汇总表-utf8_part_${num}.csv`;
+  return `8.6数据汇总表-utf8_part_${num}.csv`;
 });
 
-// 优化配置 - 针对8.11数据汇总表多文件批量导入调整（6个文件）
+// 优化配置 - 针对8.6数据汇总表多文件批量导入调整（12个文件）
 const MAX_RETRIES = 3;          // 最大重试次数
 const DELAY_BETWEEN_CHUNKS = 600; // 分块间延迟0.6秒
 const DELAY_BETWEEN_FILES = 2000;  // 文件间延迟2秒
 const PROGRESS_SAVE_INTERVAL = 3; // 每3个分块保存一次进度
-const PROGRESS_FILE = './8_11_import_progress.json'; // 8.11进度文件路径
-const LOG_FILE = './8_11_import.log'; // 详细日志文件
-const STATS_FILE = './8_11_import_stats.json'; // 统计数据文件
+const PROGRESS_FILE = './8_6_import_progress.json'; // 8.6进度文件路径
+const LOG_FILE = './8_6_import.log'; // 详细日志文件
+const STATS_FILE = './8_6_import_stats.json'; // 统计数据文件
 
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -81,6 +81,44 @@ function loadStats() {
   };
 }
 
+// 保存进度
+function saveProgress(progress) {
+  try {
+    fs.writeFileSync(PROGRESS_FILE, JSON.stringify(progress, null, 2));
+  } catch (error) {
+    log(`⚠️ 进度保存失败: ${error.message}`, 'WARN');
+  }
+}
+
+// 加载进度
+function loadProgress() {
+  try {
+    if (fs.existsSync(PROGRESS_FILE)) {
+      return JSON.parse(fs.readFileSync(PROGRESS_FILE, 'utf8'));
+    }
+  } catch (error) {
+    log(`⚠️ 进度加载失败: ${error.message}`, 'WARN');
+  }
+  return {
+    currentFileIndex: 0,
+    currentChunkIndex: 0,
+    completedFiles: 0,
+    completedChunks: 0,
+    timestamp: null
+  };
+}
+
+// 清理进度文件
+function clearProgress() {
+  try {
+    if (fs.existsSync(PROGRESS_FILE)) {
+      fs.unlinkSync(PROGRESS_FILE);
+    }
+  } catch (error) {
+    log(`⚠️ 进度文件清理失败: ${error.message}`, 'WARN');
+  }
+}
+
 // 计算进度百分比和预估剩余时间（多文件版本）
 function calculateProgress(stats) {
   // 文件级别进度
@@ -99,89 +137,29 @@ function calculateProgress(stats) {
   return {
     filePercentage: fileProgress.toFixed(2),
     chunkPercentage: chunkProgress.toFixed(2),
-    processedFiles: stats.processedFiles,
-    totalFiles: stats.totalFiles,
-    processedChunks: stats.processedChunks,
-    totalChunks: stats.totalChunks,
-    currentFile: stats.currentFile,
-    remainingFiles: stats.totalFiles - stats.processedFiles,
-    remainingChunks: stats.totalChunks - stats.processedChunks,
-    estimatedTimeRemaining: stats.estimatedTimeRemaining
+    estimatedTimeRemaining: stats.estimatedTimeRemaining || 0
   };
 }
 
-// 显示进度信息（多文件版本）
-function displayProgress(stats) {
-  const progress = calculateProgress(stats);
-  
-  log(`📁 文件进度: ${progress.processedFiles}/${progress.totalFiles} (${progress.filePercentage}%)`);
-  log(`📦 分块进度: ${progress.processedChunks}/${progress.totalChunks} (${progress.chunkPercentage}%)`);
-  log(`📈 已导入记录: ${stats.importedRecords.toLocaleString()} 条`);
-  log(`📊 当前处理: ${progress.currentFile}`);
-  log(`📊 状态: ${stats.status}`);
-  
-  if (progress.estimatedTimeRemaining) {
-    const hours = Math.floor(progress.estimatedTimeRemaining / 3600);
-    const minutes = Math.floor((progress.estimatedTimeRemaining % 3600) / 60);
-    log(`⏱️ 预计剩余时间: ${hours}小时${minutes}分钟`);
-  }
-}
-
-// 保存导入进度
-function saveProgress(progress) {
-  try {
-    fs.writeFileSync(PROGRESS_FILE, JSON.stringify(progress, null, 2));
-  } catch (error) {
-    console.warn('⚠️ 进度保存失败:', error.message);
-  }
-}
-
-// 加载导入进度
-function loadProgress() {
-  try {
-    if (fs.existsSync(PROGRESS_FILE)) {
-      return JSON.parse(fs.readFileSync(PROGRESS_FILE, 'utf8'));
-    }
-  } catch (error) {
-    console.warn('⚠️ 进度加载失败:', error.message);
-  }
-  return { 
-    completedFiles: 0, 
-    currentFileIndex: 0, 
-    completedChunks: 0, 
-    currentChunkIndex: 0 
-  };
-}
-
-// 清理进度文件
-function clearProgress() {
-  try {
-    if (fs.existsSync(PROGRESS_FILE)) {
-      fs.unlinkSync(PROGRESS_FILE);
-    }
-  } catch (error) {
-    console.warn('⚠️ 进度文件清理失败:', error.message);
-  }
-}
-
+// 格式化数字
 function formatNumber(num) {
-  return num.toLocaleString();
+  return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
+// 格式化文件大小
 function formatFileSize(bytes) {
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  if (bytes === 0) return '0 B';
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
 }
 
+// 登录函数
 async function login() {
   try {
-    console.log('🔐 正在登录生产环境...');
     const response = await fetch(`${PRODUCTION_URL}/api/auth/login`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         username: USERNAME,
@@ -190,13 +168,17 @@ async function login() {
     });
 
     if (!response.ok) {
-      throw new Error(`登录失败: ${response.status} ${response.statusText}`);
+      const error = await response.text();
+      throw new Error(`登录失败: ${error}`);
     }
 
     const data = await response.json();
-    const token = data.token || data.data?.token;
+    
+    // 支持两种响应格式：{ token: "..." } 或 { success: true, data: { token: "..." } }
+    const token = data.token || (data.data && data.data.token);
+    
     if (!token) {
-      throw new Error('登录响应中没有找到token');
+      throw new Error('登录成功但未获取到token');
     }
 
     console.log('✅ 登录成功');
@@ -226,17 +208,17 @@ async function getDbStats(token) {
   }
 }
 
-// 分割CSV内容为小块 - 针对1.15数据优化的块大小（20个文件批量处理）
+// 分割CSV内容为小块 - 根据文件大小智能分块
 function splitCsvContent(csvContent, filename, targetChunkSize = 100) {
   const lines = csvContent.split('\n').filter(line => line.trim());
   const header = lines[0];
   const dataLines = lines.slice(1);
   
-  // 针对1.15数据采用优化的块大小策略（20个文件批量处理，根据实际行数智能分块）
+  // 根据实际行数动态调整块大小
   const totalLines = dataLines.length;
   let chunkSize = targetChunkSize;
   
-  // 1.15数据为20个分割文件，根据实际行数动态调整块大小
+  // 8.6数据为20个分割文件，根据实际行数动态调整块大小
   if (totalLines > 100000) {
     chunkSize = 100; // 超大文件（>10万行），使用100行块保持稳定
   } else if (totalLines > 50000) {
@@ -340,23 +322,22 @@ async function importCsvFile(filePath, token) {
     
     const chunks = splitCsvContent(csvContent, filename);
     
-    // 初始化统计
+    // 更新统计
     const importStats = loadStats();
-    importStats.totalRecords = actualRecords;
-    importStats.totalChunks = chunks.length;
-    importStats.startTime = new Date().toISOString();
-    importStats.status = 'running';
+    importStats.totalChunks += chunks.length;
     saveStats(importStats);
 
     let successChunks = 0;
     let failedChunks = 0;
     
-    // 检查断点续传
+    // 检查断点续传（仅针对当前文件）
     const savedProgress = loadProgress();
-    let startChunkIndex = savedProgress.currentChunkIndex || 0;
+    let startChunkIndex = 0;
     
-    if (startChunkIndex > 0) {
-      log(`🔄 检测到断点续传: 已完成 ${startChunkIndex} 个分块`);
+    // 如果进度文件中的最后完成文件就是当前文件，从上次中断的chunk继续
+    if (savedProgress.lastCompletedFile === filename && savedProgress.currentChunkIndex > 0) {
+      startChunkIndex = savedProgress.currentChunkIndex;
+      log(`🔄 检测到断点续传: 文件 ${filename} 已完成 ${startChunkIndex} 个分块`);
       successChunks = startChunkIndex;
       log(`📍 从分块 ${startChunkIndex + 1} 开始继续导入...`);
     }
@@ -379,14 +360,16 @@ async function importCsvFile(filePath, token) {
       }
 
       // 更新统计和进度
-      importStats.processedChunks = i + 1;
+      importStats.processedChunks++;
       saveStats(importStats);
       
       // 保存进度（每PROGRESS_SAVE_INTERVAL个分块保存一次）
       if ((i + 1) % PROGRESS_SAVE_INTERVAL === 0 || i === chunks.length - 1) {
         const progress = {
+          currentFileIndex: savedProgress.currentFileIndex,
           currentChunkIndex: i + 1,
           completedChunks: successChunks,
+          lastCompletedFile: filename,
           timestamp: new Date().toISOString()
         };
         saveProgress(progress);
@@ -399,7 +382,6 @@ async function importCsvFile(filePath, token) {
 
       // 分块间延迟
       if (i < chunks.length - 1) {
-        log(`⏳ 分块间休息 ${DELAY_BETWEEN_CHUNKS/1000} 秒...`);
         await delay(DELAY_BETWEEN_CHUNKS);
       }
     }
@@ -409,13 +391,7 @@ async function importCsvFile(filePath, token) {
     const statsAfter = await getDbStats(token);
     const totalImported = statsAfter.total - statsBefore.total;
 
-    // 更新最终统计
-    importStats.importedRecords = totalImported;
-    importStats.endTime = new Date().toISOString();
-    importStats.status = failedChunks === 0 ? 'completed' : 'completed_with_errors';
-    saveStats(importStats);
-
-    log(`\n📊 导入结果总结:`);
+    log(`\n📊 文件导入结果总结:`);
     log(`   ✅ 成功分块: ${successChunks}/${chunks.length}`);
     log(`   ❌ 失败分块: ${failedChunks}/${chunks.length}`);
     log(`   📈 新增记录: ${formatNumber(totalImported)} 条`);
@@ -437,13 +413,6 @@ async function importCsvFile(filePath, token) {
 
   } catch (error) {
     log(`❌ 文件处理失败: ${error.message}`, 'ERROR');
-    
-    // 更新错误状态
-    const importStats = loadStats();
-    importStats.endTime = new Date().toISOString();
-    importStats.status = 'error';
-    importStats.error = error.message;
-    saveStats(importStats);
     
     return {
       success: false,
@@ -470,7 +439,9 @@ async function importMultipleFiles(existingFiles, token) {
     const fileInfo = existingFiles[fileIndex];
     
     try {
-      log(`\n📁 开始处理文件 ${fileIndex + 1}/${existingFiles.length}: ${fileInfo.filename}`);
+      log(`\n${'='.repeat(80)}`);
+      log(`📁 开始处理文件 ${fileIndex + 1}/${existingFiles.length}: ${fileInfo.filename}`);
+      log(`${'='.repeat(80)}`);
       
       // 更新统计状态
       const importStats = loadStats();
@@ -485,13 +456,18 @@ async function importMultipleFiles(existingFiles, token) {
       // 保存文件级别的进度
       const progress = {
         currentFileIndex: fileIndex + 1,
+        currentChunkIndex: 0, // 重置chunk索引，因为新文件开始了
         completedFiles: fileIndex + 1,
-        timestamp: new Date().toISOString(),
-        lastCompletedFile: fileInfo.filename
+        lastCompletedFile: fileInfo.filename,
+        timestamp: new Date().toISOString()
       };
       saveProgress(progress);
       
       log(`✅ 文件 ${fileIndex + 1}/${existingFiles.length} 完成: ${fileInfo.filename}`);
+      
+      // 显示整体进度
+      const overallProgress = ((fileIndex + 1) / existingFiles.length * 100).toFixed(1);
+      log(`📊 整体进度: ${fileIndex + 1}/${existingFiles.length} 文件 (${overallProgress}%)`);
       
       // 文件间延迟（除了最后一个文件）
       if (fileIndex < existingFiles.length - 1) {
@@ -512,47 +488,33 @@ async function importMultipleFiles(existingFiles, token) {
   return results;
 }
 
+// 检查目标文件（扫描AI Drive）
 function checkTargetFiles() {
+  log(`🔍 正在检查AI Drive中的目标文件...`);
+  
   const results = [];
   let totalRecords = 0;
   let totalSize = 0;
   
-  log('🔍 开始检查文件（AI Drive访问较慢，请耐心等待...）');
-  
-  for (let i = 0; i < TARGET_FILES.length; i++) {
-    const targetFile = TARGET_FILES[i];
-    
-    // 每10个文件显示一次进度
-    if (i > 0 && i % 10 === 0) {
-      log(`   📊 已检查 ${i}/${TARGET_FILES.length} 个文件...`);
-    }
-    
+  for (const targetFile of TARGET_FILES) {
     try {
       const filePath = path.join(AI_DRIVE_PATH, targetFile);
       
-      // AI Drive文件检查 - 使用statSync直接检查
-      let stats;
-      try {
-        stats = fs.statSync(filePath);
-      } catch (statError) {
+      if (!fs.existsSync(filePath)) {
         results.push({
           filename: targetFile,
           exists: false,
-          error: 'File not found'
+          error: '文件不存在'
         });
         continue;
       }
       
-      // 读取文件内容获取实际行数（仅读取前几行来估算，提高速度）
-      let actualRecords = 0;
-      try {
-        const content = fs.readFileSync(filePath, 'utf8');
-        const lines = content.split('\n').filter(line => line.trim());
-        actualRecords = lines.length - 1; // 减去表头
-      } catch (readError) {
-        // 如果读取失败，使用文件大小估算（平均每行约60字节）
-        actualRecords = Math.floor(stats.size / 60) - 1;
-      }
+      const stats = fs.statSync(filePath);
+      
+      // 读取文件内容获取实际行数
+      const content = fs.readFileSync(filePath, 'utf8');
+      const lines = content.split('\n').filter(line => line.trim());
+      const actualRecords = lines.length - 1; // 减去表头
       
       totalRecords += actualRecords;
       totalSize += stats.size;
@@ -590,40 +552,12 @@ function checkTargetFiles() {
   };
 }
 
-// 检查单个文件
-function checkSingleFile(filename) {
-  try {
-    const filePath = path.join(AI_DRIVE_PATH, filename);
-    
-    if (!fs.existsSync(filePath)) {
-      return { exists: false };
-    }
-    
-    const stats = fs.statSync(filePath);
-    
-    // 读取文件内容获取实际行数
-    const content = fs.readFileSync(filePath, 'utf8');
-    const lines = content.split('\n').filter(line => line.trim());
-    const actualRecords = lines.length - 1; // 减去表头
-    
-    return {
-      exists: true,
-      path: filePath,
-      size: stats.size,
-      actualRecords,
-      modified: stats.mtime
-    };
-  } catch (error) {
-    return { exists: false, error: error.message };
-  }
-}
-
 async function main() {
   // 初始化日志
-  log('🚀 8.11数据汇总表批量导入系统启动');
+  log('🚀 8.6数据汇总表批量导入系统启动');
   log(`📍 AI Drive: ${AI_DRIVE_PATH}`);
   log(`📍 生产环境: ${PRODUCTION_URL}`);
-  log(`🎯 目标文件: ${TARGET_FILES.length}个分割文件 (part_1 - part_6)`);
+  log(`🎯 目标文件: ${TARGET_FILES.length}个分割文件 (part_1 - part_16)`);
   log(`⚙️ 导入配置: 逐个文件导入, 智能分块大小, 支持6位小数价格, 断点续传`);
   
   const startTime = Date.now();
@@ -682,7 +616,7 @@ async function main() {
     const finalDbStats = await getDbStats(token);
     
     log('\n' + '='.repeat(80));
-    log('🎉 8.11数据汇总表批量导入完成！');
+    log('🎉 8.6数据汇总表批量导入完成！');
     log('='.repeat(80));
     
     // 汇总结果
@@ -707,7 +641,7 @@ async function main() {
     log('\n📋 各文件导入结果:');
     results.forEach((result, index) => {
       if (result.success) {
-        log(`   ✅ ${result.filename}: ${formatNumber(result.imported)}条记录导入成功`);
+        log(`   ✅ ${result.filename}: ${formatNumber(result.imported)}条记录导入成功 (${result.successChunks}/${result.totalChunks}块)`);
       } else {
         log(`   ❌ ${result.filename}: ${result.error}`);
       }
@@ -721,7 +655,7 @@ async function main() {
     importStats.fileResults = results;
     saveStats(importStats);
     
-    log('\n🎊 8.11数据汇总表批量导入任务完成！');
+    log('\n🎊 8.6数据汇总表批量导入任务完成！');
     
     // 清理进度文件（仅全部成功时清理）
     if (successfulFiles === existingFiles.length) {

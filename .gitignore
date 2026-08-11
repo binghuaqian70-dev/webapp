@@ -35,6 +35,13 @@ logs/
 # Import logs
 import_log.txt
 import_range_log.txt
+*_import.log
+*_import_nohup.log
+
+# Import progress and stats files (runtime generated)
+*_import_progress.json
+*_import_stats.json
+*_batch_import_stats.json
 
 # CSV test files
 *.csv

@@ -24,6 +24,8 @@
     "git:log": "git log --oneline"
   },
   "dependencies": {
+    "csv-parse": "^6.1.0",
+    "csv-stringify": "^6.6.0",
     "form-data": "^4.0.4",
     "hono": "^4.9.5"
   },
