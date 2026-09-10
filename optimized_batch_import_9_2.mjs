@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * 优化的批量导入脚本 - 9.1数据汇总表导入版本 (多文件批量导入)
+ * 优化的批量导入脚本 - 9.2数据汇总表导入版本 (多文件批量导入)
  * 后台运行、进度统计、分阶段导入策略，支持6位小数价格精度
- * 支持AI Drive中9.1数据汇总表-utf8_part_1.csv到part_15.csv的15个分割文件批量导入
+ * 支持AI Drive中9.2数据汇总表-utf8_part_1.csv到part_12.csv的12个分割文件批量导入
  * 特性：逐个文件导入、断点续传、详细日志、实时进度、按文件内容行数智能分块
  */
 
@@ -13,22 +13,22 @@ const PRODUCTION_URL = 'https://webapp-csv-import.pages.dev'; // 生产环境地
 const USERNAME = 'admin';
 const PASSWORD = 'admin123';
 // 使用本地缓存目录避免AI Drive访问延迟问题
-const AI_DRIVE_PATH = '/tmp/9_1_import_cache';
-const TARGET_FILE_PREFIX = '9.1数据汇总表-utf8_part_';
-// 15个文件：9.1数据汇总表-utf8_part_1.csv 到 9.1数据汇总表-utf8_part_15.csv (注意：无前导零，使用下划线)
-const TARGET_FILES = Array.from({ length: 15 }, (_, i) => {
+const AI_DRIVE_PATH = '/tmp/9_2_import_cache';
+const TARGET_FILE_PREFIX = '9.2数据汇总表-utf8_part_';
+// 15个文件：9.2数据汇总表-utf8_part_1.csv 到 9.2数据汇总表-utf8_part_12.csv (12个文件)
+const TARGET_FILES = Array.from({ length: 12 }, (_, i) => {
   const num = i + 1;
-  return `9.1数据汇总表-utf8_part_${num}.csv`;
+  return `9.2数据汇总表-utf8_part_${num}.csv`;
 });
 
-// 优化配置 - 针对9.1数据汇总表多文件批量导入调整（15个文件）
+// 优化配置 - 针对9.2数据汇总表多文件批量导入调整（12个文件）
 const MAX_RETRIES = 3;          // 最大重试次数
 const DELAY_BETWEEN_CHUNKS = 600; // 分块间延迟0.6秒
 const DELAY_BETWEEN_FILES = 2000;  // 文件间延迟2秒
 const PROGRESS_SAVE_INTERVAL = 3; // 每3个分块保存一次进度
-const PROGRESS_FILE = './9_1_import_progress.json'; // 9.1进度文件路径
-const LOG_FILE = './9_1_import.log'; // 详细日志文件
-const STATS_FILE = './9_1_import_stats.json'; // 统计数据文件
+const PROGRESS_FILE = './9_2_import_progress.json'; // 9.2进度文件路径
+const LOG_FILE = './9_2_import.log'; // 详细日志文件
+const STATS_FILE = './9_2_import_stats.json'; // 统计数据文件
 
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));

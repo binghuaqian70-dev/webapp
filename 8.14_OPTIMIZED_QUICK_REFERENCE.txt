@@ -1,0 +1,96 @@
+═══════════════════════════════════════════════════════════════
+  8.14批量导入系统快速参考卡（优化版）
+═══════════════════════════════════════════════════════════════
+
+📁 核心文件
+─────────────────────────────────────────────────────────────
+optimized_batch_import.mjs          主导入脚本（已修改为8.14）
+
+🚀 快速启动
+─────────────────────────────────────────────────────────────
+一键启动：
+  $ ./QUICKSTART_8_14_OPTIMIZED.sh
+
+分步执行：
+  $ ./verify_8_14_optimized_system.sh      # 验证系统
+  $ ./start_8_14_optimized_import.sh       # 启动导入
+  $ ./check_8_14_optimized_import.sh       # 监控进度
+
+直接运行：
+  $ nohup node optimized_batch_import.mjs > 8_14_import_nohup.log 2>&1 &
+
+📊 监控命令
+─────────────────────────────────────────────────────────────
+实时监控：
+  $ watch -n 2 ./check_8_14_optimized_import.sh
+
+查看统计：
+  $ cat 8_14_import_stats.json | jq .
+  $ cat 8_14_import_stats.json | jq '.status, .processedFiles, .importedRecords'
+
+查看日志：
+  $ tail -f 8_14_import.log                # 实时日志
+  $ tail -100 8_14_import.log              # 最近100行
+  $ grep ERROR 8_14_import.log             # 查找错误
+
+🎯 目标数据
+─────────────────────────────────────────────────────────────
+位置: /mnt/aidrive/
+文件: 8.14数据汇总表-utf8_part_1.csv 到 part_20.csv
+记录: ~1,800条 (预估)
+大小: 84KB
+
+✨ 核心特性
+─────────────────────────────────────────────────────────────
+✅ 智能分块      动态调整 (100-300行/块)
+✅ 断点续传      自动保存进度
+✅ 自动重试      最多3次/块
+✅ 后台运行      nohup不阻塞终端
+✅ 详细日志      所有操作记录
+✅ 实时统计      JSON格式
+✅ 预估时间      根据速度计算
+✅ 6位小数      价格精度支持
+
+🔧 常用操作
+─────────────────────────────────────────────────────────────
+清除进度重新开始：
+  $ rm -f 8_14_import_*.json 8_14_import*.log
+  $ ./start_8_14_optimized_import.sh
+
+停止导入：
+  $ ps aux | grep optimized_batch_import
+  $ kill <PID>
+
+查看运行状态：
+  $ ps aux | grep optimized_batch_import
+  $ cat 8_14_import_stats.json | jq '.status'
+
+⚠️ 重要提示
+─────────────────────────────────────────────────────────────
+1. 确保数据库未包含8.14数据
+   重复导入会造成数据重复！
+
+2. 进度文件命名：
+   8_14_import_progress.json
+   8_14_import_stats.json
+   8_14_import.log
+
+3. 与8.11系统独立：
+   使用不同的进度文件，互不干扰
+
+📖 完整文档
+─────────────────────────────────────────────────────────────
+README_8_14_OPTIMIZED.md              完整使用指南
+
+🔍 验证配置
+─────────────────────────────────────────────────────────────
+查看文件配置：
+  $ grep "const TARGET_FILES" optimized_batch_import.mjs -A 3
+
+查看系统标识：
+  $ grep "8.14数据汇总表" optimized_batch_import.mjs | head -3
+
+测试预检查：
+  $ node optimized_batch_import.mjs --dry-run 2>&1 | head -20
+
+═══════════════════════════════════════════════════════════════

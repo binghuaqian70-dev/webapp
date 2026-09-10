@@ -1,236 +1,236 @@
-# 9.10数据汇总表批量导入系统
+# 9.10数据汇总表批量导入系统 - 使用指南
 
 ## 📋 系统概述
 
-这是一个专门用于导入9.10数据汇总表文件（part_01到part_20，共20个文件）的自动化导入系统。系统支持后台运行、进度统计、断点续传和失败恢复，采用中等规模优化配置。
+本系统用于将AI Drive中的9.10数据汇总表CSV文件批量导入到生产环境的商品数据库。
 
-## 📁 文件结构
+### 数据文件
+- **文件数量**: 8个CSV文件
+- **文件名称**: `9.10数据汇总表-utf8_part_1.csv` 到 `9.10数据汇总表-utf8_part_8.csv`
+- **存储位置**: `/mnt/aidrive/`
+- **本地缓存**: `/tmp/9_10_import_cache/`
 
-- `optimized_batch_import.mjs` - 主批量导入程序
-- `check_9_10_import_status.mjs` - 状态监控脚本
-- `start_9_10_import.sh` - 进程管理脚本
-- `import_single_9_10_file.mjs` - 单文件导入工具
+### 系统特性
+✅ **后台运行** - 使用nohup在后台执行，可关闭终端
+✅ **进度统计** - 实时记录导入进度和统计数据
+✅ **断点续传** - 支持中断后继续导入
+✅ **智能分块** - 根据文件内容行数自动调整分块大小
+✅ **详细日志** - 完整记录导入过程和错误信息
+✅ **多文件处理** - 自动逐个处理8个CSV文件
 
 ## 🚀 快速开始
 
-### 1. 检查文件状态
+### 方法1: 一键启动（推荐）
 ```bash
-# 检查AI Drive中的文件和系统状态
-node check_9_10_import_status.mjs
+./QUICKSTART_9_10_OPTIMIZED.sh
+```
+此脚本会自动执行：
+1. 系统验证
+2. 开始导入
+3. 显示实时进度
+
+### 方法2: 分步执行
+```bash
+# 1. 验证系统
+./verify_9_10_optimized_system.sh
+
+# 2. 开始导入
+./start_9_10_optimized_import.sh
+
+# 3. 监控进度
+./monitor_9_10_import.sh
 ```
 
-### 2. 启动批量导入
+## 📊 监控导入进度
+
+### 实时监控（推荐）
 ```bash
-# 启动后台导入进程
-./start_9_10_import.sh start
+./monitor_9_10_import.sh
 ```
+每5秒自动刷新进度，按Ctrl+C退出
 
-### 3. 监控进度
+### 手动查看
 ```bash
-# 查看详细状态
-./start_9_10_import.sh status
+# 查看统计数据
+cat 9_10_import_stats.json | jq .
 
-# 查看实时日志
-./start_9_10_import.sh follow
-
-# 快速进度检查
-node check_9_10_import_status.mjs
-```
-
-## 📊 系统配置
-
-### 文件配置
-- **源文件**: AI Drive `/mnt/aidrive/` 目录下的 `9.10数据汇总表-utf8_part_01.csv` 到 `part_20.csv`
-- **文件总数**: 20个CSV文件
-- **总文件大小**: 约631KB
-- **预估记录数**: 约5,468条
-
-### 处理配置
-- **批次大小**: 每批处理3个文件
-- **总批次数**: 7个批次
-- **延迟设置**: 文件间1.8秒，批次间10秒
-- **分块策略**: 根据文件行数自动调整（75-180行/块）
-
-### 预期结果
-- **预估总时长**: 约2-3分钟
-- **目标记录数**: 预计导入5,000-6,000条记录
-- **成功率目标**: 100%
-
-## 🔧 进程管理命令
-
-```bash
-# 启动导入进程
-./start_9_10_import.sh start
-
-# 停止导入进程
-./start_9_10_import.sh stop
-
-# 重启导入进程
-./start_9_10_import.sh restart
-
-# 查看进程状态
-./start_9_10_import.sh status
-
-# 查看日志（最后50行）
-./start_9_10_import.sh logs
-
-# 实时跟踪日志
-./start_9_10_import.sh follow
-
-# 清理所有文件
-./start_9_10_import.sh clean
-```
-
-## 🛠️ 单文件导入
-
-如果某个文件导入失败，可以使用单文件导入工具：
-
-```bash
-# 导入特定文件
-node import_single_9_10_file.mjs part_01
-node import_single_9_10_file.mjs 9.10数据汇总表-utf8_part_01.csv
-node import_single_9_10_file.mjs /mnt/aidrive/9.10数据汇总表-utf8_part_01.csv
-```
-
-## 📈 进度监控
-
-### 实时状态检查
-```bash
-node check_9_10_import_status.mjs
-```
-
-显示内容：
-- ✅ AI Drive文件检查（20个文件状态）
-- 📊 导入进度统计（已处理文件数量）
-- 🗄️ 数据库状态（记录数变化）
-- 📋 最新日志信息
-
-### 详细状态信息
-```bash
-./start_9_10_import.sh status
-```
-
-显示内容：
-- 🔄 进程运行状态（PID、CPU、内存使用）
-- 📁 相关文件状态（日志、统计、进度文件）
-- 📊 完整的状态检查报告
-
-## 🗂️ 日志和数据文件
-
-### 主要文件
-- `9_10_import.log` - 详细执行日志
-- `9_10_import_stats.json` - 统计数据（文件数、记录数、耗时等）
-- `9_10_import_progress.json` - 进度数据（支持断点续传）
-- `9_10_import.pid` - 进程ID文件
-- `single_import.log` - 单文件导入日志
-
-### 日志查看
-```bash
-# 查看主日志最后50行
-tail -50 9_10_import.log
-
-# 实时跟踪日志
+# 查看详细日志
 tail -f 9_10_import.log
 
-# 查看统计数据
-cat 9_10_import_stats.json
+# 查看后台输出
+tail -f 9_10_import_nohup.log
 ```
 
-## 🔄 断点续传
-
-系统支持断点续传功能：
-
-1. **自动检测**: 重新启动时自动检测已完成的文件
-2. **进度恢复**: 从上次中断的位置继续导入
-3. **状态保持**: 保留已完成文件的统计信息
-
-## ⚠️ 故障排除
-
-### 常见问题
-
-1. **文件找不到**
-   ```bash
-   ls -la /mnt/aidrive/9.10数据汇总表-utf8_part_*.csv
-   ```
-
-2. **登录失败**
-   - 检查网络连接
-   - 确认生产环境地址正确
-
-3. **进程无法启动**
-   ```bash
-   # 检查端口占用
-   netstat -tlnp | grep 3000
-   
-   # 清理进程
-   ./start_9_10_import.sh clean
-   ```
-
-4. **导入失败**
-   ```bash
-   # 查看详细错误日志
-   tail -100 9_10_import.log
-   
-   # 使用单文件工具重试
-   node import_single_9_10_file.mjs part_XX
-   ```
-
-### 手动修复
+### 详细进度检查
 ```bash
-# 停止进程
-./start_9_10_import.sh stop
-
-# 清理文件
-./start_9_10_import.sh clean
-
-# 重新开始
-./start_9_10_import.sh start
+./check_9_10_optimized_import.sh
 ```
 
-## 📊 预期结果
+## 📁 文件说明
 
-### 成功标准
-- ✅ 20个文件全部处理完成
-- ✅ 数据库记录数正确增长
-- ✅ 无失败文件或失败文件已修复
+### 核心脚本
+- **optimized_batch_import_9_10.mjs** - 主导入脚本（Node.js）
+- **start_9_10_optimized_import.sh** - 启动脚本
+- **verify_9_10_optimized_system.sh** - 系统验证脚本
+- **QUICKSTART_9_10_OPTIMIZED.sh** - 一键启动脚本
 
-### 完成报告
-导入完成后，系统会生成详细报告：
-- 📈 总导入记录数
-- ⏱️ 总耗时统计
-- 📊 成功率分析
-- 💾 数据库状态对比
+### 监控脚本
+- **monitor_9_10_import.sh** - 简单实时监控
+- **check_9_10_optimized_import.sh** - 详细进度检查
 
-## 🎯 技术特性
+### 运行时文件
+- **9_10_import_progress.json** - 断点续传进度文件
+- **9_10_import_stats.json** - 统计数据文件
+- **9_10_import.log** - 详细日志文件
+- **9_10_import_nohup.log** - 后台运行输出
 
-### 系统优势
-- **智能分块**: 根据文件大小自动调整分块策略
-- **错误重试**: 自动重试失败的操作（最多3次）
-- **性能优化**: 针对中等规模文件优化的延迟和批次配置
-- **完整日志**: 详细的操作日志和统计数据
-- **状态监控**: 实时进度跟踪和状态报告
+## 🔧 配置参数
 
-### 与之前版本对比
-- **9.9版本**: 10个文件，14分钟完成
-- **9.10版本**: 20个文件，预计2-3分钟完成
-- **处理效率**: 优化批次配置，提升整体处理速度
-- **监控完善**: 更精确的时间预估和状态报告
+### 导入配置（optimized_batch_import_9_10.mjs）
+```javascript
+// 生产环境
+PRODUCTION_URL = 'https://webapp-csv-import.pages.dev'
+USERNAME = 'admin'
+PASSWORD = 'admin123'
 
-## 📝 文件详情
+// 文件配置
+AI_DRIVE_PATH = '/tmp/9_10_import_cache'  // 本地缓存
+TARGET_FILES = 8个CSV文件  // 自动生成文件列表
 
-### 文件大小分布
-- **part_01**: 35.0KB (约304条记录)
-- **part_02-10**: 31-33KB (约270-280条记录/文件)
-- **part_11-13**: 36-37KB (约310-320条记录/文件)
-- **part_14-17**: 26KB (约225条记录/文件)
-- **part_18-20**: 35-36KB (约300-310条记录/文件)
+// 性能配置
+MAX_RETRIES = 3               // 最大重试次数
+DELAY_BETWEEN_CHUNKS = 600ms  // 分块间延迟
+DELAY_BETWEEN_FILES = 2000ms  // 文件间延迟
+PROGRESS_SAVE_INTERVAL = 3    // 每3个分块保存进度
+```
 
-### 总体统计
-- **总文件大小**: 631.34KB
-- **预估总记录数**: 5,468条
-- **平均文件大小**: 31.6KB
-- **平均记录数**: 273条/文件
+## 📈 导入流程
+
+```
+1. 系统验证
+   ├─ 检查脚本文件
+   ├─ 验证AI Drive文件（8个）
+   ├─ 测试缓存目录权限
+   └─ 检查网络连接
+
+2. 文件缓存
+   └─ 复制8个CSV文件到本地缓存
+
+3. 逐个导入
+   ├─ part_1.csv → 智能分块 → 批量导入
+   ├─ part_2.csv → 智能分块 → 批量导入
+   ├─ part_3.csv → 智能分块 → 批量导入
+   ├─ part_4.csv → 智能分块 → 批量导入
+   ├─ part_5.csv → 智能分块 → 批量导入
+   ├─ part_6.csv → 智能分块 → 批量导入
+   ├─ part_7.csv → 智能分块 → 批量导入
+   └─ part_8.csv → 智能分块 → 批量导入
+
+4. 完成统计
+   └─ 生成导入报告
+```
+
+## 🔍 故障排查
+
+### 问题: 导入进程意外停止
+```bash
+# 查看错误日志
+tail -100 9_10_import.log
+
+# 检查后台输出
+cat 9_10_import_nohup.log
+
+# 重新启动（自动断点续传）
+./start_9_10_optimized_import.sh
+```
+
+### 问题: 网络连接失败
+```bash
+# 测试生产环境连接
+curl -I https://webapp-csv-import.pages.dev
+
+# 检查重试配置
+grep MAX_RETRIES optimized_batch_import_9_10.mjs
+```
+
+### 问题: 文件读取失败
+```bash
+# 检查AI Drive文件
+ls -lh /mnt/aidrive/9.10数据汇总表-utf8_part_*.csv
+
+# 检查本地缓存
+ls -lh /tmp/9_10_import_cache/
+
+# 手动复制到缓存
+mkdir -p /tmp/9_10_import_cache
+cp /mnt/aidrive/9.10数据汇总表-utf8_part_*.csv /tmp/9_10_import_cache/
+```
+
+### 问题: 进度文件损坏
+```bash
+# 备份当前进度
+cp 9_10_import_progress.json 9_10_import_progress.json.bak
+
+# 删除进度文件（将从头开始）
+rm 9_10_import_progress.json
+
+# 重新开始导入
+./start_9_10_optimized_import.sh
+```
+
+## 📊 性能指标
+
+### 预期性能
+- **分块大小**: 100-300行（根据内容自动调整）
+- **导入速度**: 约100-200条/秒
+- **文件间隔**: 2秒
+- **分块间隔**: 0.6秒
+
+### 资源使用
+- **内存占用**: ~200MB
+- **磁盘空间**: 需要约500MB缓存空间
+- **网络带宽**: 稳定HTTP连接
+
+## ⚠️ 注意事项
+
+1. **不要同时运行多个导入进程** - 可能导致数据冲突
+2. **确保AI Drive文件完整** - 8个CSV文件都必须存在
+3. **保持网络连接稳定** - 导入过程需要持续网络访问
+4. **磁盘空间充足** - 至少需要1GB可用空间
+5. **导入过程中可关闭终端** - 进程在后台运行
+
+## 📞 技术支持
+
+### 日志位置
+- 详细日志: `9_10_import.log`
+- 后台输出: `9_10_import_nohup.log`
+- 统计数据: `9_10_import_stats.json`
+- 进度文件: `9_10_import_progress.json`
+
+### 命令速查
+```bash
+# 一键启动
+./QUICKSTART_9_10_OPTIMIZED.sh
+
+# 实时监控
+./monitor_9_10_import.sh
+
+# 查看统计
+cat 9_10_import_stats.json | jq .
+
+# 查看日志
+tail -f 9_10_import.log
+
+# 停止导入
+# 查找进程ID
+ps aux | grep optimized_batch_import_9_10
+# 终止进程
+kill <PID>
+```
 
 ---
 
-**支持**: 如有问题，请查看日志文件或使用单文件导入工具进行故障排除。
+**版本**: 9.10 优化版
+**更新时间**: 2026-09-10
+**文件数量**: 8个CSV文件
+**支持特性**: 后台运行、进度统计、断点续传、智能分块
